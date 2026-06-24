@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Socket.io Demo</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Socket.io Playground</h1>
+        <div class="info">
+            <p><strong>Your Socket ID:</strong> <span id="my-id">Connecting...</span></p>
+            <p>Open this page in <strong>multiple tabs or browsers</strong> side-by-side to test!</p>
+        </div>
+
+        <div class="panels">
+            <!-- Global Broadcast Panel -->
+            <div class="panel">
+                <h2>1. Global Broadcast</h2>
+                <p>Sends a message to EVERYONE connected.</p>
+                <div class="input-group">
+                    <input type="text" id="broadcast-msg" placeholder="Broadcast message...">
+                    <button id="btn-broadcast">Broadcast</button>
+                </div>
+                <div class="chat-box" id="box-broadcast"></div>
+            </div>
+
+            <!-- Rooms Panel -->
+            <div class="panel">
+                <h2>2. Rooms (Groups)</h2>
+                <p>Join a room to send/receive messages only in that room.</p>
+                <div class="input-group">
+                    <input type="text" id="room-name" placeholder="Room Name (e.g. gaming)">
+                    <button id="btn-join-room">Join Room</button>
+                </div>
+                <div class="input-group">
+                    <input type="text" id="room-msg" placeholder="Room message...">
+                    <button id="btn-room-msg">Send to Room</button>
+                </div>
+                <div class="chat-box" id="box-room"></div>
+            </div>
+
+            <!-- Direct Message Panel -->
+            <div class="panel">
+                <h2>3. Direct Message (1-to-1)</h2>
+                <p>Send a message to a specific user using their Socket ID.</p>
+                <div class="input-group">
+                    <input type="text" id="recipient-id" placeholder="Recipient Socket ID">
+                </div>
+                <div class="input-group">
+                    <input type="text" id="dm-msg" placeholder="Direct message...">
+                    <button id="btn-dm">Send DM</button>
+                </div>
+                <div class="chat-box" id="box-dm"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Socket.io client script automatically served by socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
