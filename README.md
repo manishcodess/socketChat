@@ -42,7 +42,7 @@ io.on('connection', (socket) => {
     // 2. ROOMS: When someone wants to join a room...
     socket.on('join-room', (room) => {
         // 'socket.join()' puts them in that room
-        socket.join(room);
+        socket.join(room); 
     });
 
     // When someone sends a message to a room...
