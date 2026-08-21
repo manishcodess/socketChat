@@ -2,14 +2,25 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 // Set up the basic server parts
 const app = express(); // Makes the web app
 const server = http.createServer(app); // Creates the server
-const io = new Server(server); // Adds real-time chat magic (Socket.io) to the server
+const io = new Server(server, {
+    cors: {
+        origin: "*", // allow any origin in case of cross-origin requests
+        methods: ["GET", "POST"]
+    }
+}); // Adds real-time chat magic (Socket.io) to the server
 
 // Tell the server to share the files inside the 'public' folder so people can see the website
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Explicitly serve the index.html on the root route
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
 
 // Listen for when someone connects to our chat server
 //"Whenever a new user connects, run this function."
@@ -55,8 +66,8 @@ io.on('connection', (socket) => {
     });
 });
 
-// Set the port number where our server will run
-const PORT = 4000;
+// Set the port number where our server will run (use environment port for deployment!)
+const PORT = process.env.PORT || 4000;
 
 // Start the server and wait for people to visit
 server.listen(PORT, () => {

@@ -1,4 +1,4 @@
-# Socket.IO Easy Demo! 👋
+# Socketchat 👋
 
 Welcome! This is a very simple guide to understanding how Socket.IO works. We will explain everything step-by-step in easy English.
 
