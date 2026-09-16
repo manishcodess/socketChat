@@ -3,66 +3,267 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Socketchat</title>
+    <title>WhatsApp Web</title>
+    <meta name="description" content="A modern, high-fidelity WhatsApp Web clone powered by Socket.IO real-time messaging.">
+    <!-- Google Fonts & Style -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <header class="top-header">
-        <h1>Socketchat</h1>
-    </header>
-    <div class="container">
-        <div class="info">
-            <p><strong>Your Socket ID:</strong> <span id="my-id">Connecting...</span></p>
-            <p>Open this page in <strong>multiple tabs or browsers</strong> side-by-side to test!</p>
+    <div class="app-container" id="app-container">
+        <!-- ==========================================
+             LEFT SIDEBAR: Chats, Channels, & Users
+             ========================================== -->
+        <aside class="sidebar">
+            <!-- Sidebar Header -->
+            <header class="sidebar-header">
+                <div class="user-profile-badge" id="btn-open-profile" title="Click to edit profile">
+                    <div class="avatar-wrapper">
+                        <img src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Profile Avatar" class="avatar-img" id="sidebar-my-avatar">
+                        <span class="status-dot"></span>
+                    </div>
+                    <div class="user-meta">
+                        <span class="my-name" id="sidebar-my-name">Connecting...</span>
+                        <span class="my-id-tag" id="btn-copy-id" title="Click to copy your Socket ID">
+                            <span id="sidebar-my-id">ID: ...</span> 📋
+                        </span>
+                    </div>
+                </div>
+
+                <div class="sidebar-actions">
+                    <!-- New Group Room -->
+                    <button class="icon-btn" id="btn-open-group-modal" title="Create / Join Group">
+                        <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+                    </button>
+                    <!-- Direct Message (1-to-1) -->
+                    <button class="icon-btn" id="btn-open-dm-modal" title="New Direct Message">
+                        <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+                    </button>
+                    <!-- Settings -->
+                    <button class="icon-btn" id="btn-open-settings" title="Profile & Settings">
+                        <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Search & Filter Bar -->
+            <div class="search-container">
+                <div class="search-bar">
+                    <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    <input type="text" id="search-input" class="search-input" placeholder="Search or start new chat">
+                </div>
+
+                <!-- Filter Chips -->
+                <div class="filter-tabs">
+                    <button class="filter-chip active" data-filter="all">All</button>
+                    <button class="filter-chip" data-filter="unread">Unread</button>
+                    <button class="filter-chip" data-filter="groups">Groups</button>
+                    <button class="filter-chip" data-filter="direct">Direct (1-to-1)</button>
+                </div>
+            </div>
+
+            <!-- Scrollable Chat / Contact Feed -->
+            <div class="chat-list" id="chat-list">
+                <!-- Chats dynamically inserted by JavaScript -->
+            </div>
+        </aside>
+
+        <!-- ==========================================
+             MAIN CHAT CONVERSATION VIEW
+             ========================================== -->
+        <main class="chat-view" id="chat-view">
+            <!-- Wallpaper Pattern Background -->
+            <div class="chat-wallpaper"></div>
+
+            <!-- Active Chat Header -->
+            <header class="chat-header">
+                <div class="chat-header-info" id="chat-header-info">
+                    <button class="icon-btn btn-back" id="btn-back-to-list" title="Back to chats">
+                        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    </button>
+                    <div class="avatar-wrapper" id="active-chat-avatar-wrapper">
+                        <img src="" alt="Active Chat Avatar" class="avatar-img" id="active-chat-avatar">
+                    </div>
+                    <div class="chat-header-meta">
+                        <span class="chat-header-name" id="active-chat-title">General Lounge</span>
+                        <span class="chat-header-status" id="active-chat-status">Broadcast Channel</span>
+                    </div>
+                </div>
+
+                <div class="chat-header-actions">
+                    <!-- Voice Call Simulator -->
+                    <button class="icon-btn" id="btn-voice-call" title="Voice Call">
+                        <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1zM19 12h2a9 9 0 0 0-9-9v2c3.87 0 7 3.13 7 7zm-4 0h2a5 5 0 0 0-5-5v2a3 3 0 0 1 3 3z"/></svg>
+                    </button>
+                    <!-- Video Call Simulator -->
+                    <button class="icon-btn" id="btn-video-call" title="Video Call">
+                        <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                    </button>
+                    <!-- Search In Chat -->
+                    <button class="icon-btn" id="btn-search-chat" title="Search in Chat">
+                        <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Scrollable Messages Canvas -->
+            <div class="chat-messages" id="chat-messages">
+                <!-- System Security Notice -->
+                <div class="system-notice">
+                    <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    <span>Messages are transmitted in real-time over Socket.IO.</span>
+                </div>
+
+                <div class="date-divider">Today</div>
+
+                <!-- Active Messages inserted here -->
+            </div>
+
+            <!-- Typing Indicator Bubble -->
+            <div class="typing-indicator-bubble" id="typing-indicator">
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-dot"></span>
+                <span class="typing-name" id="typing-username">Someone is typing...</span>
+            </div>
+
+            <!-- Chat Input Footer -->
+            <footer class="chat-footer">
+                <!-- Attachment Preview Box -->
+                <div class="attachment-preview-box" id="attachment-preview-box">
+                    <button class="btn-remove-attachment" id="btn-remove-attachment" title="Remove attachment">✕</button>
+                    <img src="" id="attachment-preview-img" alt="Attachment Preview">
+                </div>
+
+                <!-- Emoji Toggle Button -->
+                <button class="icon-btn" id="btn-toggle-emoji" title="Insert Emoji">
+                    <svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/></svg>
+                </button>
+
+                <!-- Hidden File Input & Paperclip Button -->
+                <input type="file" id="file-input" accept="image/*" style="display: none;">
+                <button class="icon-btn" id="btn-attach-file" title="Attach Image">
+                    <svg viewBox="0 0 24 24"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5a2.5 2.5 0 0 1 5 0v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5a2.5 2.5 0 0 0 5 0V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+                </button>
+
+                <!-- Message Input Box -->
+                <div class="input-box-wrapper">
+                    <input type="text" id="message-input" class="message-input" placeholder="Type a message" autocomplete="off">
+                </div>
+
+                <!-- Send / Voice Action Button -->
+                <button class="btn-send-action" id="btn-send-message" title="Send Message">
+                    <svg viewBox="0 0 24 24" id="send-icon"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                </button>
+            </footer>
+
+            <!-- Floating Emoji Picker Popover -->
+            <div class="emoji-picker-container" id="emoji-picker">
+                <div class="emoji-tabs">
+                    <button class="emoji-tab-btn active" data-category="smileys">😀</button>
+                    <button class="emoji-tab-btn" data-category="gestures">👍</button>
+                    <button class="emoji-tab-btn" data-category="hearts">❤️</button>
+                    <button class="emoji-tab-btn" data-category="celebration">🎉</button>
+                </div>
+                <div class="emoji-grid" id="emoji-grid">
+                    <!-- Emojis injected by script.js -->
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ==========================================
+         MODALS & DIALOGS
+         ========================================== -->
+
+    <!-- Profile Settings Modal -->
+    <div class="modal-backdrop" id="modal-profile">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Your Profile</h3>
+                <button class="icon-btn modal-close" data-close="modal-profile">✕</button>
+            </div>
+            <form class="modal-form" id="form-profile">
+                <div class="form-group">
+                    <label>Display Name</label>
+                    <input type="text" id="input-profile-name" class="form-input" required maxlength="25">
+                </div>
+                <div class="form-group">
+                    <label>About / Status</label>
+                    <input type="text" id="input-profile-status" class="form-input" maxlength="60">
+                </div>
+                <div class="form-group">
+                    <label>Avatar Seed</label>
+                    <input type="text" id="input-profile-avatar" class="form-input" placeholder="e.g. alex, coder, ninja">
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary modal-close" data-close="modal-profile">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
         </div>
+    </div>
 
-        <div class="panels">
-            <!-- Global Broadcast Panel -->
-            <div class="panel">
-                <h2>1. Global Broadcast</h2>
-                <p>Sends a message to EVERYONE connected.</p>
-                <div class="input-group">
-                    <input type="text" id="broadcast-msg" placeholder="Broadcast message...">
-                    <button id="btn-broadcast">Broadcast</button>
-                </div>
-                <div class="chat-box" id="box-broadcast"></div>
+    <!-- Create / Join Group Modal -->
+    <div class="modal-backdrop" id="modal-group">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Create / Join Group Room</h3>
+                <button class="icon-btn modal-close" data-close="modal-group">✕</button>
             </div>
+            <form class="modal-form" id="form-group">
+                <div class="form-group">
+                    <label>Group Room Name</label>
+                    <input type="text" id="input-group-name" class="form-input" placeholder="e.g. gaming, developers, chillout" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary modal-close" data-close="modal-group">Cancel</button>
+                    <button type="submit" class="btn-primary">Join Room</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            <!-- Rooms Panel -->
-            <div class="panel">
-                <h2>2. Rooms (Groups)</h2>
-                <p>Join a room to send/receive messages only in that room.</p>
-                <div class="input-group">
-                    <input type="text" id="room-name" placeholder="Room Name (e.g. gaming)">
-                    <button id="btn-join-room">Join Room</button>
-                </div>
-                <div class="input-group">
-                    <input type="text" id="room-msg" placeholder="Room message...">
-                    <button id="btn-room-msg">Send to Room</button>
-                </div>
-                <div class="chat-box" id="box-room"></div>
+    <!-- Direct Message (1-on-1) Modal -->
+    <div class="modal-backdrop" id="modal-dm">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Start Direct Chat</h3>
+                <button class="icon-btn modal-close" data-close="modal-dm">✕</button>
             </div>
+            <form class="modal-form" id="form-dm">
+                <div class="form-group">
+                    <label>Peer Socket ID</label>
+                    <input type="text" id="input-dm-recipient" class="form-input" placeholder="Enter recipient Socket ID" required>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary modal-close" data-close="modal-dm">Cancel</button>
+                    <button type="submit" class="btn-primary">Open Chat</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            <!-- Direct Message Panel -->
-            <div class="panel">
-                <h2>3. Direct Message (1-to-1)</h2>
-                <p>Send a message to a specific user using their Socket ID.</p>
-                <div class="input-group">
-                    <input type="text" id="recipient-id" placeholder="Recipient Socket ID">
-                </div>
-                <div class="input-group">
-                    <input type="text" id="dm-msg" placeholder="Direct message...">
-                    <button id="btn-dm">Send DM</button>
-                </div>
-                <div class="chat-box" id="box-dm"></div>
+    <!-- Call Simulator Modal -->
+    <div class="modal-backdrop" id="modal-call">
+        <div class="modal-card call-modal-card">
+            <img src="" id="call-avatar" class="call-avatar" alt="Call Contact">
+            <h3 class="call-title" id="call-name">Contact</h3>
+            <span class="call-status" id="call-status-text">Ringing...</span>
+            <div class="call-actions">
+                <button class="btn-end-call" id="btn-end-call" title="End Call">
+                    <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.28 8.91 7.42 7.5 12 7.5s8.72 1.41 11.71 4.17c.39.39.39 1.02 0 1.41l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Socket.io client script automatically served by socket.io -->
+    <!-- Toast Notification Overlay -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- Socket.IO Client Scripts -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>
