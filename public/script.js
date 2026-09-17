@@ -1,14 +1,21 @@
 // ==========================================================================
-// WhatsApp Web Clone - Frontend Real-Time Logic with Socket.IO
+// WhatsApp Web Clone - Frontend Real-Time Logic with Clerk & Socket.IO
 // ==========================================================================
 
-const socket = io();
-
-// Application State
+// Global Application State
 const state = {
+    authConfig: {
+        publishableKey: '',
+        isConfigured: false
+    },
+    clerk: null,
+    isGuest: false,
+    socket: null,
     myProfile: {
         id: '',
+        clerkId: '',
         name: 'You',
+        email: '',
         avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=me',
         status: 'Hey there! I am using WhatsApp Web.'
     },
@@ -19,7 +26,6 @@ const state = {
         avatar: '',
         status: 'Broadcast Channel'
     },
-    // Map of chatId -> Chat Data Object
     chats: {
         'global': {
             id: 'global',
@@ -30,7 +36,7 @@ const state = {
             messages: [],
             unread: 0,
             lastMessage: 'Welcome to WhatsApp Web broadcast!',
-            lastTime: formatTime(new Date())
+            lastTime: ''
         },
         'room_general': {
             id: 'room_general',
@@ -42,7 +48,7 @@ const state = {
             messages: [],
             unread: 0,
             lastMessage: 'Tap to join the conversation',
-            lastTime: formatTime(new Date())
+            lastTime: ''
         }
     },
     onlineUsers: [],
@@ -55,7 +61,7 @@ const state = {
 };
 
 // ==========================================================================
-// Sound Synthesis (Web Audio API - No external audio files required)
+// Sound Synthesis (Web Audio API - Self-Contained)
 // ==========================================================================
 class SoundEffects {
     constructor() {
@@ -132,7 +138,17 @@ const sounds = new SoundEffects();
 // ==========================================================================
 // DOM Element References
 // ==========================================================================
+const authPortal = document.getElementById('auth-portal');
 const appContainer = document.getElementById('app-container');
+const btnClerkSignin = document.getElementById('btn-clerk-signin');
+const btnClerkSignup = document.getElementById('btn-clerk-signup');
+const btnDemoGuest = document.getElementById('btn-demo-guest');
+const btnOpenSetupModal = document.getElementById('btn-open-setup-modal');
+const clerkUserButtonContainer = document.getElementById('clerk-user-button-container');
+const clerkMountContainer = document.getElementById('clerk-sign-in-container');
+const authQrFallback = document.getElementById('auth-qr-fallback');
+
+// Sidebar and Chat Elements
 const chatListEl = document.getElementById('chat-list');
 const chatMessagesEl = document.getElementById('chat-messages');
 const messageInputEl = document.getElementById('message-input');
@@ -140,7 +156,7 @@ const btnSendMessage = document.getElementById('btn-send-message');
 const searchInputEl = document.getElementById('search-input');
 const filterChips = document.querySelectorAll('.filter-chip');
 
-// Active Chat Header Elements
+// Active Chat Header
 const activeChatTitleEl = document.getElementById('active-chat-title');
 const activeChatStatusEl = document.getElementById('active-chat-status');
 const activeChatAvatarWrapper = document.getElementById('active-chat-avatar-wrapper');
@@ -148,13 +164,14 @@ const typingIndicatorEl = document.getElementById('typing-indicator');
 const typingUsernameEl = document.getElementById('typing-username');
 const btnBackToList = document.getElementById('btn-back-to-list');
 
-// Sidebar User Profile Elements
+// Sidebar Profile
 const sidebarMyNameEl = document.getElementById('sidebar-my-name');
 const sidebarMyIdEl = document.getElementById('sidebar-my-id');
 const sidebarMyAvatarEl = document.getElementById('sidebar-my-avatar');
 const btnCopyId = document.getElementById('btn-copy-id');
+const btnSidebarSignOut = document.getElementById('btn-sidebar-sign-out');
 
-// Attachment & Emoji Elements
+// Attachment & Emoji
 const btnAttachFile = document.getElementById('btn-attach-file');
 const fileInput = document.getElementById('file-input');
 const attachmentPreviewBox = document.getElementById('attachment-preview-box');
@@ -167,6 +184,7 @@ const emojiTabBtns = document.querySelectorAll('.emoji-tab-btn');
 
 // Modals
 const modalProfile = document.getElementById('modal-profile');
+const modalClerkSetup = document.getElementById('modal-clerk-setup');
 const modalGroup = document.getElementById('modal-group');
 const modalDm = document.getElementById('modal-dm');
 const modalCall = document.getElementById('modal-call');
@@ -174,9 +192,17 @@ const toastContainer = document.getElementById('toast-container');
 
 // Forms & Inputs
 const formProfile = document.getElementById('form-profile');
-const inputProfileName = document.getElementById('input-profile-name');
 const inputProfileStatus = document.getElementById('input-profile-status');
-const inputProfileAvatar = document.getElementById('input-profile-avatar');
+const profileCardAvatar = document.getElementById('profile-card-avatar');
+const profileCardName = document.getElementById('profile-card-name');
+const profileCardEmail = document.getElementById('profile-card-email');
+const profileCardClerkId = document.getElementById('profile-card-clerk-id');
+const btnOpenClerkManage = document.getElementById('btn-open-clerk-manage');
+const btnModalSignOut = document.getElementById('btn-modal-sign-out');
+
+const formClerkKeys = document.getElementById('form-clerk-keys');
+const inputClerkPubkey = document.getElementById('input-clerk-pubkey');
+const inputClerkSeckey = document.getElementById('input-clerk-seckey');
 
 const formGroup = document.getElementById('form-group');
 const inputGroupName = document.getElementById('input-group-name');
@@ -206,7 +232,6 @@ const EMOJI_CATEGORIES = {
     celebration: ['🎉','🎊','🎈','🎂','🍰','🍾','🥂','🍻','🍺','🍹','🍸','🍕','🍔','🍟','🌭','🍿','🍩','🍦','🔥','✨','🌟','⭐','⚡️','🌈','☀️','🌙','🚀','🎯','🏆','🥇','🎁']
 };
 
-// Populate Emojis
 function renderEmojis(category = 'smileys') {
     const list = EMOJI_CATEGORIES[category] || EMOJI_CATEGORIES.smileys;
     emojiGrid.innerHTML = '';
@@ -233,7 +258,6 @@ emojiTabBtns.forEach(btn => {
 
 renderEmojis('smileys');
 
-// Toggle Emoji Picker
 btnToggleEmoji.onclick = (e) => {
     e.stopPropagation();
     const isVisible = emojiPicker.style.display === 'flex';
@@ -250,6 +274,7 @@ document.addEventListener('click', (e) => {
 // Helper Utility Functions
 // ==========================================================================
 function formatTime(dateInput) {
+    if (!dateInput) return '';
     const d = new Date(dateInput);
     let hours = d.getHours();
     let minutes = d.getMinutes();
@@ -272,221 +297,405 @@ function showToast(message) {
     }, 3200);
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/"/g, "&quot;")
+              .replace(/'/g, "&#039;");
+}
+
 // ==========================================================================
-// Socket.IO Event Handlers
+// Clerk Authentication & Initialization Lifecycle
 // ==========================================================================
 
-// 1. Initial Profile Setup
-socket.on('init-profile', (user) => {
-    state.myProfile = user;
-    sidebarMyNameEl.textContent = user.name;
-    sidebarMyIdEl.textContent = `ID: ${user.id.substring(0, 6)}...`;
-    sidebarMyAvatarEl.src = user.avatar;
-    inputProfileName.value = user.name;
-    inputProfileStatus.value = user.status;
-    showToast(`Connected as ${user.name}`);
-    
-    // Auto join initial general room
-    socket.emit('join-room', 'general');
-    renderChatList();
-    renderActiveChat();
-});
+async function fetchAuthConfig() {
+    try {
+        const res = await fetch('/api/auth/config');
+        const data = await res.json();
+        state.authConfig = data;
+        return data;
+    } catch (err) {
+        console.warn('Could not fetch auth config from server:', err);
+        return { publishableKey: '', isConfigured: false };
+    }
+}
 
-// 2. Profile Update Confirmation
-socket.on('profile-updated', (user) => {
-    state.myProfile = user;
-    sidebarMyNameEl.textContent = user.name;
-    sidebarMyAvatarEl.src = user.avatar;
-    showToast('Profile updated successfully!');
-});
+async function initClerkAuth() {
+    const config = await fetchAuthConfig();
+    const pubKey = config.publishableKey;
 
-// 3. User Presence & Online Contacts
-socket.on('user-list-updated', (users) => {
-    // Filter out current self
-    state.onlineUsers = users.filter(u => u.id !== socket.id);
-    
-    // Update direct chat metadata if active or stored
-    state.onlineUsers.forEach(u => {
-        const chatId = `direct_${u.id}`;
-        if (state.chats[chatId]) {
-            state.chats[chatId].name = u.name;
-            state.chats[chatId].avatar = u.avatar;
-            state.chats[chatId].status = u.status || 'Online';
+    if (pubKey && pubKey !== 'pk_test_placeholder' && window.Clerk) {
+        try {
+            const clerk = new window.Clerk(pubKey);
+            await clerk.load({
+                appearance: {
+                    variables: {
+                        colorPrimary: '#00a884',
+                        colorBackground: '#111b21',
+                        colorInputBackground: '#202c33',
+                        colorInputText: '#e9edef',
+                        colorText: '#e9edef',
+                        colorTextSecondary: '#8696a0',
+                        colorNeutral: '#222e35'
+                    }
+                }
+            });
+            state.clerk = clerk;
+
+            // Handle Clerk state changes
+            clerk.addListener(async ({ user }) => {
+                if (user) {
+                    await handleUserSignedIn(user);
+                } else if (!state.isGuest) {
+                    handleUserSignedOut();
+                }
+            });
+
+            // Initial auth status
+            if (clerk.user) {
+                await handleUserSignedIn(clerk.user);
+            } else {
+                showAuthPortal();
+            }
+        } catch (err) {
+            console.error('Clerk SDK initialization error:', err);
+            showAuthPortal();
+        }
+    } else {
+        console.log('Clerk Publishable Key is not configured yet. Ready in setup/demo mode.');
+        showAuthPortal();
+    }
+}
+
+function showAuthPortal() {
+    authPortal.style.display = 'flex';
+    appContainer.style.display = 'none';
+    if (state.socket) {
+        state.socket.disconnect();
+        state.socket = null;
+    }
+}
+
+async function handleUserSignedIn(clerkUser) {
+    const fullName = clerkUser.fullName || `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || clerkUser.username || 'Clerk User';
+    const email = clerkUser.primaryEmailAddress?.emailAddress || '';
+    const avatar = clerkUser.imageUrl || `https://api.dicebear.com/7.x/bottts/svg?seed=${clerkUser.id}`;
+
+    state.myProfile = {
+        id: '',
+        clerkId: clerkUser.id,
+        name: fullName,
+        email: email,
+        avatar: avatar,
+        status: 'Hey there! I am using WhatsApp Web.'
+    };
+    state.isGuest = false;
+
+    // Get session token for Socket.IO authentication
+    let token = null;
+    if (state.clerk && state.clerk.session) {
+        try {
+            token = await state.clerk.session.getToken();
+        } catch (tokErr) {
+            console.warn('Could not acquire session token:', tokErr);
+        }
+    }
+
+    // Connect real-time socket with auth
+    connectSocket(token, state.myProfile);
+
+    // Switch UI from Auth portal to main Chat Application
+    authPortal.style.display = 'none';
+    appContainer.style.display = 'flex';
+
+    // Update Profile Modal and Sidebar Header
+    updateProfileUI();
+
+    // Mount Clerk User Button if container available
+    if (state.clerk && clerkUserButtonContainer) {
+        try {
+            clerkUserButtonContainer.innerHTML = '';
+            state.clerk.mountUserButton(clerkUserButtonContainer);
+        } catch (e) {
+            console.warn('UserButton mount error:', e);
+        }
+    }
+
+    showToast(`Welcome, ${fullName}!`);
+}
+
+function handleUserSignedOut() {
+    state.isGuest = false;
+    state.myProfile = {
+        id: '',
+        clerkId: '',
+        name: 'You',
+        email: '',
+        avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=me',
+        status: 'Hey there! I am using WhatsApp Web.'
+    };
+    if (clerkUserButtonContainer) clerkUserButtonContainer.innerHTML = '';
+    showAuthPortal();
+    showToast('Signed out of WhatsApp Web');
+}
+
+function updateProfileUI() {
+    sidebarMyNameEl.textContent = state.myProfile.name;
+    sidebarMyAvatarEl.src = state.myProfile.avatar;
+    sidebarMyIdEl.textContent = `ID: ${(state.myProfile.clerkId || state.myProfile.id).substring(0, 8)}...`;
+
+    profileCardAvatar.src = state.myProfile.avatar;
+    profileCardName.textContent = state.myProfile.name;
+    profileCardEmail.textContent = state.myProfile.email || 'Guest / Local Session';
+    profileCardClerkId.textContent = `Clerk ID: ${state.myProfile.clerkId || state.myProfile.id || 'N/A'}`;
+    inputProfileStatus.value = state.myProfile.status;
+}
+
+// ==========================================================================
+// Socket.IO Connection & Real-Time Event Handlers
+// ==========================================================================
+
+function connectSocket(token, userProfile) {
+    if (state.socket) {
+        state.socket.disconnect();
+    }
+
+    state.socket = io({
+        auth: {
+            token: token,
+            user: userProfile
         }
     });
 
-    renderChatList();
-    if (state.activeChat.type === 'direct') {
-        const activeUser = users.find(u => u.id === state.activeChat.recipientId);
-        if (activeUser) {
-            activeChatStatusEl.textContent = 'Online';
-            activeChatStatusEl.classList.add('online');
-        } else {
-            activeChatStatusEl.textContent = 'Offline';
-            activeChatStatusEl.classList.remove('online');
-        }
-    }
-});
+    const socket = state.socket;
 
-// 4. Global Broadcast Received
-socket.on('receive-broadcast', (msg) => {
-    const isSelf = msg.senderId === socket.id;
-    const chat = state.chats['global'];
-    if (!chat) return;
+    // 1. Initial Profile Received
+    socket.on('init-profile', (user) => {
+        state.myProfile = { ...state.myProfile, ...user };
+        updateProfileUI();
 
-    chat.messages.push({
-        ...msg,
-        isSelf
+        // Auto join default group
+        socket.emit('join-room', 'general');
+        renderChatList();
+        renderActiveChat();
     });
-    chat.lastMessage = isSelf ? `You: ${msg.text || 'Photo'}` : `${msg.senderName}: ${msg.text || 'Photo'}`;
-    chat.lastTime = formatTime(msg.timestamp);
 
-    if (state.activeChat.id !== 'global') {
-        chat.unread = (chat.unread || 0) + 1;
-        sounds.playReceived();
-    } else {
-        if (!isSelf) sounds.playReceived();
-        renderActiveMessages();
-    }
-    renderChatList();
-});
-
-// 5. Room Message Received
-socket.on('receive-room-message', (msg) => {
-    const chatId = `room_${msg.room}`;
-    let chat = state.chats[chatId];
-    if (!chat) {
-        chat = {
-            id: chatId,
-            type: 'room',
-            roomName: msg.room,
-            name: `${msg.room.charAt(0).toUpperCase() + msg.room.slice(1)} Room`,
-            avatar: '',
-            status: 'Group Chat',
-            messages: [],
-            unread: 0,
-            lastMessage: '',
-            lastTime: ''
-        };
-        state.chats[chatId] = chat;
-    }
-
-    const isSelf = msg.senderId === socket.id;
-    chat.messages.push({
-        ...msg,
-        isSelf
+    // 2. Profile Updated
+    socket.on('profile-updated', (user) => {
+        state.myProfile = { ...state.myProfile, ...user };
+        updateProfileUI();
+        showToast('Status updated successfully');
     });
-    chat.lastMessage = isSelf ? `You: ${msg.text || 'Photo'}` : `${msg.senderName}: ${msg.text || 'Photo'}`;
-    chat.lastTime = formatTime(msg.timestamp);
 
-    if (state.activeChat.id !== chatId) {
-        chat.unread = (chat.unread || 0) + 1;
-        sounds.playReceived();
-    } else {
-        if (!isSelf) sounds.playReceived();
-        renderActiveMessages();
-    }
-    renderChatList();
-});
+    // 3. User Presence & Online Contacts
+    socket.on('user-list-updated', (users) => {
+        state.onlineUsers = users.filter(u => u.id !== socket.id);
 
-// Room System Notices
-socket.on('room-system-message', (data) => {
-    const chatId = `room_${data.room}`;
-    const chat = state.chats[chatId];
-    if (chat) {
-        chat.messages.push({
-            id: 'sys_' + Date.now(),
-            isSystem: true,
-            text: data.message,
-            timestamp: data.timestamp
+        state.onlineUsers.forEach(u => {
+            const chatId = `direct_${u.id}`;
+            if (state.chats[chatId]) {
+                state.chats[chatId].name = u.name;
+                state.chats[chatId].avatar = u.avatar;
+                state.chats[chatId].status = u.status || 'Online';
+            }
         });
-        if (state.activeChat.id === chatId) {
-            renderActiveMessages();
+
+        renderChatList();
+        if (state.activeChat.type === 'direct') {
+            const activeUser = users.find(u => u.id === state.activeChat.recipientId);
+            if (activeUser) {
+                activeChatStatusEl.textContent = 'Online';
+                activeChatStatusEl.classList.add('online');
+            } else {
+                activeChatStatusEl.textContent = 'Offline';
+                activeChatStatusEl.classList.remove('online');
+            }
         }
-    }
-});
-
-// 6. Direct Message (1-to-1) Received
-socket.on('receive-direct-message', (msg) => {
-    const chatId = `direct_${msg.senderId}`;
-    let chat = state.chats[chatId];
-    if (!chat) {
-        chat = {
-            id: chatId,
-            type: 'direct',
-            recipientId: msg.senderId,
-            name: msg.senderName,
-            avatar: msg.senderAvatar,
-            status: 'Online',
-            messages: [],
-            unread: 0,
-            lastMessage: '',
-            lastTime: ''
-        };
-        state.chats[chatId] = chat;
-    }
-
-    chat.messages.push({
-        ...msg,
-        isSelf: false
     });
-    chat.lastMessage = msg.text || 'Photo';
-    chat.lastTime = formatTime(msg.timestamp);
 
-    if (state.activeChat.id !== chatId) {
-        chat.unread = (chat.unread || 0) + 1;
-        sounds.playReceived();
-        showToast(`New message from ${msg.senderName}`);
-    } else {
-        sounds.playReceived();
-        renderActiveMessages();
-    }
-    renderChatList();
-});
+    // 4. Global Broadcast Received
+    socket.on('receive-broadcast', (msg) => {
+        const isSelf = msg.senderId === socket.id || (msg.senderClerkId && msg.senderClerkId === state.myProfile.clerkId);
+        const chat = state.chats['global'];
+        if (!chat) return;
 
-// Direct Message Sent Acknowledgment
-socket.on('direct-message-sent', (msg) => {
-    const chatId = `direct_${msg.recipientId}`;
-    let chat = state.chats[chatId];
-    if (chat) {
         chat.messages.push({
             ...msg,
-            isSelf: true
+            isSelf
         });
-        chat.lastMessage = `You: ${msg.text || 'Photo'}`;
+        chat.lastMessage = isSelf ? `You: ${msg.text || 'Photo'}` : `${msg.senderName}: ${msg.text || 'Photo'}`;
         chat.lastTime = formatTime(msg.timestamp);
-        if (state.activeChat.id === chatId) {
+
+        if (state.activeChat.id !== 'global') {
+            chat.unread = (chat.unread || 0) + 1;
+            sounds.playReceived();
+        } else {
+            if (!isSelf) sounds.playReceived();
             renderActiveMessages();
         }
         renderChatList();
-    }
-});
+    });
 
-// 7. Typing Event Handlers
-socket.on('user-typing', (data) => {
-    if (state.activeChat.id === data.chatId) {
-        state.typingUsers.add(data.userName);
-        updateTypingIndicatorUI();
-    }
-    const item = document.querySelector(`.chat-item[data-id="${data.chatId}"] .chat-item-preview`);
-    if (item) {
-        item.textContent = 'typing...';
-        item.classList.add('typing');
-    }
-});
+    // 5. Room Message Received
+    socket.on('receive-room-message', (msg) => {
+        const chatId = `room_${msg.room}`;
+        let chat = state.chats[chatId];
+        if (!chat) {
+            chat = {
+                id: chatId,
+                type: 'room',
+                roomName: msg.room,
+                name: `${msg.room.charAt(0).toUpperCase() + msg.room.slice(1)} Group`,
+                avatar: '',
+                status: 'Group Chat',
+                messages: [],
+                unread: 0,
+                lastMessage: '',
+                lastTime: ''
+            };
+            state.chats[chatId] = chat;
+        }
 
-socket.on('user-stop-typing', (data) => {
-    if (state.activeChat.id === data.chatId) {
-        state.typingUsers.clear();
-        updateTypingIndicatorUI();
-    }
-    const chat = state.chats[data.chatId];
-    const item = document.querySelector(`.chat-item[data-id="${data.chatId}"] .chat-item-preview`);
-    if (item && chat) {
-        item.textContent = chat.lastMessage || '';
-        item.classList.remove('typing');
-    }
-});
+        const isSelf = msg.senderId === socket.id || (msg.senderClerkId && msg.senderClerkId === state.myProfile.clerkId);
+        chat.messages.push({
+            ...msg,
+            isSelf
+        });
+        chat.lastMessage = isSelf ? `You: ${msg.text || 'Photo'}` : `${msg.senderName}: ${msg.text || 'Photo'}`;
+        chat.lastTime = formatTime(msg.timestamp);
+
+        if (state.activeChat.id !== chatId) {
+            chat.unread = (chat.unread || 0) + 1;
+            sounds.playReceived();
+        } else {
+            if (!isSelf) sounds.playReceived();
+            renderActiveMessages();
+        }
+        renderChatList();
+    });
+
+    // Room System Notices
+    socket.on('room-system-message', (data) => {
+        const chatId = `room_${data.room}`;
+        const chat = state.chats[chatId];
+        if (chat) {
+            chat.messages.push({
+                id: 'sys_' + Date.now(),
+                isSystem: true,
+                text: data.message,
+                timestamp: data.timestamp
+            });
+            if (state.activeChat.id === chatId) {
+                renderActiveMessages();
+            }
+        }
+    });
+
+    // 6. Direct Message (1-to-1) Received
+    socket.on('receive-direct-message', (msg) => {
+        const chatId = `direct_${msg.senderId}`;
+        let chat = state.chats[chatId];
+        if (!chat) {
+            chat = {
+                id: chatId,
+                type: 'direct',
+                recipientId: msg.senderId,
+                name: msg.senderName,
+                avatar: msg.senderAvatar,
+                status: 'Online',
+                messages: [],
+                unread: 0,
+                lastMessage: '',
+                lastTime: ''
+            };
+            state.chats[chatId] = chat;
+        }
+
+        chat.messages.push({
+            ...msg,
+            isSelf: false
+        });
+        chat.lastMessage = msg.text || 'Photo';
+        chat.lastTime = formatTime(msg.timestamp);
+
+        if (state.activeChat.id !== chatId) {
+            chat.unread = (chat.unread || 0) + 1;
+            sounds.playReceived();
+            showToast(`New message from ${msg.senderName}`);
+        } else {
+            sounds.playReceived();
+            renderActiveMessages();
+        }
+        renderChatList();
+    });
+
+    // Direct Message Sent Acknowledgment
+    socket.on('direct-message-sent', (msg) => {
+        const chatId = `direct_${msg.recipientId}`;
+        let chat = state.chats[chatId];
+        if (chat) {
+            chat.messages.push({
+                ...msg,
+                isSelf: true
+            });
+            chat.lastMessage = `You: ${msg.text || 'Photo'}`;
+            chat.lastTime = formatTime(msg.timestamp);
+            if (state.activeChat.id === chatId) {
+                renderActiveMessages();
+            }
+            renderChatList();
+        }
+    });
+
+    // 7. Typing Event Handlers
+    socket.on('user-typing', (data) => {
+        if (state.activeChat.id === data.chatId) {
+            state.typingUsers.add(data.userName);
+            updateTypingIndicatorUI();
+        }
+        const item = document.querySelector(`.chat-item[data-id="${data.chatId}"] .chat-item-preview`);
+        if (item) {
+            item.textContent = 'typing...';
+            item.classList.add('typing');
+        }
+    });
+
+    socket.on('user-stop-typing', (data) => {
+        if (state.activeChat.id === data.chatId) {
+            state.typingUsers.clear();
+            updateTypingIndicatorUI();
+        }
+        const chat = state.chats[data.chatId];
+        const item = document.querySelector(`.chat-item[data-id="${data.chatId}"] .chat-item-preview`);
+        if (item && chat) {
+            item.textContent = chat.lastMessage || '';
+            item.classList.remove('typing');
+        }
+    });
+
+    // 8. Message Reactions Synced
+    socket.on('message-reaction-updated', (data) => {
+        const chat = state.chats[data.chatId];
+        if (chat) {
+            const msg = chat.messages.find(m => m.id === data.messageId);
+            if (msg) {
+                if (!msg.reactions) msg.reactions = {};
+                msg.reactions[data.userId] = data.emoji;
+                if (state.activeChat.id === data.chatId) {
+                    renderActiveMessages();
+                }
+            }
+        }
+    });
+
+    // Connect / Error Handling
+    socket.on('connect_error', (err) => {
+        console.warn('Socket connection warning:', err.message);
+        showToast(err.message || 'Connection error');
+    });
+}
 
 function updateTypingIndicatorUI() {
     if (state.typingUsers.size > 0) {
@@ -499,21 +708,6 @@ function updateTypingIndicatorUI() {
     }
 }
 
-// 8. Live Message Reactions Synced
-socket.on('message-reaction-updated', (data) => {
-    const chat = state.chats[data.chatId];
-    if (chat) {
-        const msg = chat.messages.find(m => m.id === data.messageId);
-        if (msg) {
-            if (!msg.reactions) msg.reactions = {};
-            msg.reactions[data.userId] = data.emoji;
-            if (state.activeChat.id === data.chatId) {
-                renderActiveMessages();
-            }
-        }
-    }
-});
-
 // ==========================================================================
 // UI Rendering Functions
 // ==========================================================================
@@ -522,10 +716,9 @@ socket.on('message-reaction-updated', (data) => {
 function renderChatList() {
     chatListEl.innerHTML = '';
 
-    // Collect all chats to display
     let chatItems = Object.values(state.chats);
 
-    // Also include online direct peers who may not have messaged yet
+    // Online direct peers
     state.onlineUsers.forEach(u => {
         const directId = `direct_${u.id}`;
         if (!state.chats[directId]) {
@@ -544,7 +737,7 @@ function renderChatList() {
         }
     });
 
-    // Apply Filter Chips
+    // Filter Chips
     if (state.currentFilter === 'unread') {
         chatItems = chatItems.filter(c => c.unread > 0);
     } else if (state.currentFilter === 'groups') {
@@ -553,7 +746,7 @@ function renderChatList() {
         chatItems = chatItems.filter(c => c.type === 'direct');
     }
 
-    // Apply Search Query
+    // Search
     if (state.searchQuery.trim()) {
         const q = state.searchQuery.toLowerCase();
         chatItems = chatItems.filter(c => 
@@ -579,7 +772,6 @@ function renderChatList() {
             itemEl.classList.add('active');
         }
 
-        // Avatar template based on type
         let avatarMarkup = '';
         if (chat.type === 'global') {
             avatarMarkup = `
@@ -684,11 +876,10 @@ function renderActiveMessages() {
     const chat = state.chats[state.activeChat.id];
     const messages = chat ? chat.messages : [];
 
-    // Keep System Security Notice and Date Divider
     chatMessagesEl.innerHTML = `
         <div class="system-notice">
             <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-            <span>Messages are transmitted in real-time over Socket.IO.</span>
+            <span>Messages are verified with Clerk identity and transmitted over Socket.IO.</span>
         </div>
         <div class="date-divider">Today</div>
     `;
@@ -706,23 +897,19 @@ function renderActiveMessages() {
         row.classList.add('msg-row', msg.isSelf ? 'sent' : 'received');
         row.dataset.msgId = msg.id;
 
-        // Message text
         const textMarkup = msg.text ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : '';
-        // Attachment
         const attachmentMarkup = msg.attachment ? `
             <div class="message-attachment">
                 <img src="${msg.attachment}" alt="Shared Image" onclick="window.open('${msg.attachment}')">
             </div>
         ` : '';
 
-        // Reactions count & icons
         let reactionsBadge = '';
         if (msg.reactions && Object.keys(msg.reactions).length > 0) {
             const emojis = Array.from(new Set(Object.values(msg.reactions))).join(' ');
             reactionsBadge = `<div class="reactions-badge">${emojis} ${Object.keys(msg.reactions).length > 1 ? Object.keys(msg.reactions).length : ''}</div>`;
         }
 
-        // Ticks for sent messages
         const ticksMarkup = msg.isSelf ? `
             <span class="msg-ticks" title="Read">
                 <svg viewBox="0 0 16 15"><path d="M15.01 3.316l-.478-.372a.365.365 0 0 0-.51.063L8.666 9.877 5.978 6.74a.364.364 0 0 0-.51-.063l-.478.372a.364.364 0 0 0-.063.51l3.327 3.869a.728.728 0 0 0 1.077.02l5.742-7.622a.365.365 0 0 0-.063-.51zm-4.07 0l-.478-.372a.365.365 0 0 0-.51.063L4.596 9.877 2.978 8.01a.364.364 0 0 0-.51-.063l-.478.372a.364.364 0 0 0-.063.51l2.327 2.6a.728.728 0 0 0 1.077.02l5.656-7.622a.365.365 0 0 0-.063-.51z"/></svg>
@@ -730,7 +917,6 @@ function renderActiveMessages() {
         ` : '';
 
         row.innerHTML = `
-            <!-- Hover Reaction Ribbon -->
             <div class="reaction-bar">
                 <button class="reaction-btn" data-emoji="👍">👍</button>
                 <button class="reaction-btn" data-emoji="❤️">❤️</button>
@@ -741,7 +927,7 @@ function renderActiveMessages() {
             </div>
 
             <div class="message-bubble">
-                <div class="sender-name-tag">${msg.senderName || ''}</div>
+                <div class="sender-name-tag">${escapeHtml(msg.senderName || '')}</div>
                 ${attachmentMarkup}
                 ${textMarkup}
                 <div class="message-meta">
@@ -752,7 +938,6 @@ function renderActiveMessages() {
             </div>
         `;
 
-        // Bind reaction buttons
         row.querySelectorAll('.reaction-btn').forEach(btn => {
             btn.onclick = (e) => {
                 e.stopPropagation();
@@ -766,14 +951,6 @@ function renderActiveMessages() {
     chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
 }
 
-function escapeHtml(str) {
-    return str.replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/"/g, "&quot;")
-              .replace(/'/g, "&#039;");
-}
-
 // ==========================================================================
 // Messaging & Event Dispatching
 // ==========================================================================
@@ -783,22 +960,26 @@ function sendMessage() {
     const attachment = state.pendingAttachment;
 
     if (!text && !attachment) return;
+    if (!state.socket) {
+        showToast('You are not connected to the chat server.');
+        return;
+    }
 
     const chat = state.activeChat;
 
     if (chat.type === 'global') {
-        socket.emit('send-broadcast', {
+        state.socket.emit('send-broadcast', {
             text: text,
             attachment: attachment
         });
     } else if (chat.type === 'room') {
-        socket.emit('send-room-message', {
+        state.socket.emit('send-room-message', {
             room: chat.roomName,
             text: text,
             attachment: attachment
         });
     } else if (chat.type === 'direct') {
-        socket.emit('send-direct-message', {
+        state.socket.emit('send-direct-message', {
             recipientId: chat.recipientId,
             text: text,
             attachment: attachment
@@ -807,7 +988,6 @@ function sendMessage() {
 
     sounds.playSent();
 
-    // Reset inputs
     messageInputEl.value = '';
     clearAttachment();
     updateSendButtonState();
@@ -815,8 +995,9 @@ function sendMessage() {
 }
 
 function sendReaction(messageId, emoji) {
+    if (!state.socket) return;
     const chat = state.activeChat;
-    socket.emit('send-reaction', {
+    state.socket.emit('send-reaction', {
         chatId: chat.id,
         messageId: messageId,
         emoji: emoji,
@@ -825,14 +1006,14 @@ function sendReaction(messageId, emoji) {
     });
 }
 
-// Typing Event Emitters with Debounce
+// Typing Event Emitters
 messageInputEl.addEventListener('input', () => {
     updateSendButtonState();
 
-    if (!state.isTyping) {
+    if (!state.isTyping && state.socket) {
         state.isTyping = true;
         const chat = state.activeChat;
-        socket.emit('typing', {
+        state.socket.emit('typing', {
             targetType: chat.type,
             targetId: chat.type === 'room' ? chat.roomName : (chat.type === 'direct' ? chat.recipientId : null)
         });
@@ -845,10 +1026,10 @@ messageInputEl.addEventListener('input', () => {
 });
 
 function stopTyping() {
-    if (state.isTyping) {
+    if (state.isTyping && state.socket) {
         state.isTyping = false;
         const chat = state.activeChat;
-        socket.emit('stop-typing', {
+        state.socket.emit('stop-typing', {
             targetType: chat.type,
             targetId: chat.type === 'room' ? chat.roomName : (chat.type === 'direct' ? chat.recipientId : null)
         });
@@ -864,7 +1045,6 @@ function updateSendButtonState() {
     }
 }
 
-// Enter key sends message
 messageInputEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -925,12 +1105,13 @@ filterChips.forEach(chip => {
     };
 });
 
-// Copy Socket ID
+// Copy User / Socket ID
 btnCopyId.onclick = (e) => {
     e.stopPropagation();
-    if (navigator.clipboard && state.myProfile.id) {
-        navigator.clipboard.writeText(state.myProfile.id);
-        showToast('Socket ID copied to clipboard!');
+    const idToCopy = state.myProfile.clerkId || state.myProfile.id;
+    if (navigator.clipboard && idToCopy) {
+        navigator.clipboard.writeText(idToCopy);
+        showToast('User ID copied to clipboard!');
     }
 };
 
@@ -941,7 +1122,7 @@ btnBackToList.onclick = () => {
 
 // ==========================================================================
 // Modal Event Management
-// ==========================================
+// ==========================================================================
 
 function openModal(modalEl) {
     modalEl.style.display = 'flex';
@@ -965,14 +1146,39 @@ btnOpenSettings.onclick = () => openModal(modalProfile);
 
 formProfile.onsubmit = (e) => {
     e.preventDefault();
-    const name = inputProfileName.value.trim();
     const status = inputProfileStatus.value.trim();
-    const seed = inputProfileAvatar.value.trim() || name;
-    const avatar = `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(seed)}`;
-
-    socket.emit('update-profile', { name, avatar, status });
+    state.myProfile.status = status;
+    if (state.socket) {
+        state.socket.emit('update-profile', { status });
+    }
     closeModal(modalProfile);
+    showToast('Status saved!');
 };
+
+// Manage Clerk Account button
+btnOpenClerkManage.onclick = () => {
+    if (state.clerk && state.clerk.openUserProfile) {
+        state.clerk.openUserProfile();
+    } else {
+        showToast('Clerk User Profile is only available when signed in with Clerk.');
+    }
+};
+
+// Sign Out triggers
+async function performSignOut() {
+    if (state.clerk && state.clerk.user) {
+        try {
+            await state.clerk.signOut();
+        } catch (e) {
+            console.warn('Sign out error:', e);
+        }
+    }
+    closeModal(modalProfile);
+    handleUserSignedOut();
+}
+
+btnSidebarSignOut.onclick = performSignOut;
+btnModalSignOut.onclick = performSignOut;
 
 // Create / Join Group Modal
 btnOpenGroupModal.onclick = () => openModal(modalGroup);
@@ -982,7 +1188,9 @@ formGroup.onsubmit = (e) => {
     const roomName = inputGroupName.value.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
     if (!roomName) return;
 
-    socket.emit('join-room', roomName);
+    if (state.socket) {
+        state.socket.emit('join-room', roomName);
+    }
 
     const chatId = `room_${roomName}`;
     if (!state.chats[chatId]) {
@@ -1014,20 +1222,21 @@ formDm.onsubmit = (e) => {
     const recipientId = inputDmRecipient.value.trim();
     if (!recipientId) return;
 
-    if (recipientId === socket.id) {
+    if (state.socket && (recipientId === state.socket.id || recipientId === state.myProfile.clerkId)) {
         showToast('You cannot start a direct chat with yourself');
         return;
     }
 
-    const peer = state.onlineUsers.find(u => u.id === recipientId);
-    const chatId = `direct_${recipientId}`;
+    const peer = state.onlineUsers.find(u => u.id === recipientId || u.clerkId === recipientId);
+    const resolvedSocketId = peer ? peer.id : recipientId;
+    const chatId = `direct_${resolvedSocketId}`;
 
     if (!state.chats[chatId]) {
         state.chats[chatId] = {
             id: chatId,
             type: 'direct',
-            recipientId: recipientId,
-            name: peer ? peer.name : `User (${recipientId.substring(0, 5)})`,
+            recipientId: resolvedSocketId,
+            name: peer ? peer.name : `User (${resolvedSocketId.substring(0, 5)})`,
             avatar: peer ? peer.avatar : '',
             status: peer ? 'Online' : 'Direct Message',
             messages: [],
@@ -1081,3 +1290,100 @@ btnEndCall.onclick = () => {
     closeModal(modalCall);
     showToast('Call ended');
 };
+
+// ==========================================================================
+// Auth Portal Button Handlers & Clerk Triggers
+// ==========================================================================
+
+btnClerkSignin.onclick = () => {
+    if (state.clerk) {
+        state.clerk.openSignIn();
+    } else {
+        openModal(modalClerkSetup);
+    }
+};
+
+btnClerkSignup.onclick = () => {
+    if (state.clerk) {
+        state.clerk.openSignUp();
+    } else {
+        openModal(modalClerkSetup);
+    }
+};
+
+btnDemoGuest.onclick = () => {
+    state.isGuest = true;
+    const guestId = `guest_${Math.random().toString(36).substr(2, 6)}`;
+    state.myProfile = {
+        id: '',
+        clerkId: guestId,
+        name: `Guest ${guestId.substring(6).toUpperCase()}`,
+        email: 'guest@demo.local',
+        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${guestId}`,
+        status: 'Hey there! I am using WhatsApp Web (Demo Mode).'
+    };
+
+    connectSocket(null, state.myProfile);
+    authPortal.style.display = 'none';
+    appContainer.style.display = 'flex';
+    updateProfileUI();
+    showToast(`Connected as ${state.myProfile.name}`);
+};
+
+btnOpenSetupModal.onclick = () => openModal(modalClerkSetup);
+
+// Clerk Keys Save Form
+formClerkKeys.onsubmit = async (e) => {
+    e.preventDefault();
+    const pubKey = inputClerkPubkey.value.trim();
+    const secKey = inputClerkSeckey.value.trim();
+
+    if (!pubKey || !secKey) {
+        showToast('Please provide both keys');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/auth/config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ publishableKey: pubKey, secretKey: secKey })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showToast('Clerk configuration saved! Reinitializing...');
+            closeModal(modalClerkSetup);
+            setTimeout(() => window.location.reload(), 800);
+        } else {
+            showToast(data.error || 'Failed to save configuration');
+        }
+    } catch (err) {
+        console.error('Error saving keys:', err);
+        showToast('Error saving configuration');
+    }
+};
+
+// ==========================================================================
+// Bootstrap on Window Load
+// ==========================================================================
+window.addEventListener('DOMContentLoaded', () => {
+    // Check if Clerk SDK script is loaded
+    if (window.Clerk) {
+        initClerkAuth();
+    } else {
+        // Wait briefly for async script load
+        const clerkCheckTimer = setInterval(() => {
+            if (window.Clerk) {
+                clearInterval(clerkCheckTimer);
+                initClerkAuth();
+            }
+        }, 100);
+        // Timeout after 3 seconds fallback
+        setTimeout(() => {
+            clearInterval(clerkCheckTimer);
+            if (!state.clerk) {
+                initClerkAuth();
+            }
+        }, 3000);
+    }
+});

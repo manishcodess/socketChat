@@ -4,35 +4,121 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WhatsApp Web</title>
-    <meta name="description" content="A modern, high-fidelity WhatsApp Web clone powered by Socket.IO real-time messaging.">
+    <meta name="description" content="A modern, high-fidelity WhatsApp Web clone powered by Socket.IO and Clerk Authentication.">
     <!-- Google Fonts & Style -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Clerk JS Browser SDK -->
+    <script async crossorigin="anonymous" src="https://cdn.jsdelivr.net/npm/@clerk/clerk-js@latest/dist/clerk.browser.js"></script>
 </head>
 <body>
-    <div class="app-container" id="app-container">
+    <!-- ==========================================
+         AUTHENTICATION PORTAL (WhatsApp Web Theme)
+         ========================================== -->
+    <div class="auth-portal" id="auth-portal">
+        <div class="auth-header-band">
+            <div class="auth-brand">
+                <svg class="auth-logo" viewBox="0 0 24 24">
+                    <path fill="currentColor" d="M12.04 2c-5.46 0-9.91 4.45-9.91 9.91 0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38c1.45.79 3.08 1.21 4.74 1.21 5.46 0 9.91-4.45 9.91-9.91 0-2.65-1.03-5.14-2.9-7.01A9.816 9.816 0 0 0 12.04 2zm.01 1.67c2.2 0 4.26.86 5.82 2.42a8.225 8.225 0 0 1 2.41 5.83c0 4.54-3.7 8.24-8.24 8.24-1.48 0-2.93-.4-4.2-1.15l-.3-.18-3.12.82.83-3.04-.2-.31a8.196 8.196 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.24-8.24h-.18zm4.52 11.66c-.25-.13-1.47-.72-1.7-.81-.23-.08-.39-.13-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.13-1.07-.39-2.03-1.25-.75-.67-1.26-1.5-1.41-1.75-.14-.25-.02-.39.11-.51.11-.11.25-.29.38-.43.13-.15.17-.25.25-.42.08-.17.04-.31-.02-.44-.06-.13-.56-1.35-.77-1.85-.2-.49-.41-.42-.56-.43h-.48c-.17 0-.44.06-.67.31-.23.25-.87.85-.87 2.08s.89 2.41 1.01 2.58c.13.17 1.75 2.67 4.24 3.74.59.26 1.05.41 1.41.53.59.19 1.13.16 1.56.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.07.15-1.18-.06-.11-.23-.17-.48-.3z"/>
+                </svg>
+                <span class="auth-brand-name">WHATSAPP WEB</span>
+            </div>
+            <button class="btn-setup-trigger" id="btn-open-setup-modal" title="Clerk API Keys Configuration">
+                ⚙️ Setup Clerk Keys
+            </button>
+        </div>
+
+        <div class="auth-card">
+            <!-- Left Info Panel -->
+            <div class="auth-info-panel">
+                <h1 class="auth-title">Sign in to WhatsApp Web</h1>
+                <p class="auth-subtitle">Secure real-time messaging powered by Clerk Authentication &amp; Socket.IO</p>
+                
+                <ol class="auth-steps-list">
+                    <li>
+                        <div class="step-num">1</div>
+                        <div class="step-text">Sign in using your <strong>Clerk account</strong> (Google, Email, GitHub, etc.)</div>
+                    </li>
+                    <li>
+                        <div class="step-num">2</div>
+                        <div class="step-text">Automatic JWT session verification establishes a secure Socket.IO connection</div>
+                    </li>
+                    <li>
+                        <div class="step-num">3</div>
+                        <div class="step-text">Chat instantly in real-time with contacts, groups, and global lounge</div>
+                    </li>
+                </ol>
+
+                <div class="auth-action-buttons">
+                    <button class="btn-primary btn-clerk-action" id="btn-clerk-signin">
+                        <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+                        Sign In with Clerk
+                    </button>
+                    <button class="btn-secondary btn-clerk-action" id="btn-clerk-signup">
+                        Create an Account
+                    </button>
+                    <button class="btn-demo-mode" id="btn-demo-guest">
+                        Continue in Guest / Demo Mode &rarr;
+                    </button>
+                </div>
+
+                <div class="auth-security-badge">
+                    <svg viewBox="0 0 24 24"><path fill="currentColor" d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    <span>Clerk Enterprise Authentication &amp; JWT Verified</span>
+                </div>
+            </div>
+
+            <!-- Right Interactive / Mount Container -->
+            <div class="auth-clerk-container">
+                <!-- Clerk Component Mount Point -->
+                <div id="clerk-sign-in-container" class="clerk-mount-target"></div>
+                
+                <!-- Placeholder / QR visual until modal triggered -->
+                <div class="auth-qr-fallback" id="auth-qr-fallback">
+                    <div class="qr-box">
+                        <div class="qr-corner top-left"></div>
+                        <div class="qr-corner top-right"></div>
+                        <div class="qr-corner bottom-left"></div>
+                        <div class="qr-corner bottom-right"></div>
+                        <img src="https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=https://clerk.com&color=00a884&bgcolor=111b21" alt="Clerk Auth QR" class="qr-image" id="auth-qr-img">
+                        <div class="qr-logo-overlay">
+                            <span class="clerk-logo-icon">⚡</span>
+                        </div>
+                    </div>
+                    <p class="qr-caption">Click <strong>Sign In with Clerk</strong> to launch authentication</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================
+         MAIN APPLICATION (Visible after Auth)
+         ========================================== -->
+    <div class="app-container" id="app-container" style="display: none;">
         <!-- ==========================================
              LEFT SIDEBAR: Chats, Channels, & Users
              ========================================== -->
         <aside class="sidebar">
             <!-- Sidebar Header -->
             <header class="sidebar-header">
-                <div class="user-profile-badge" id="btn-open-profile" title="Click to edit profile">
+                <div class="user-profile-badge" id="btn-open-profile" title="Click to view profile / settings">
                     <div class="avatar-wrapper">
                         <img src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Profile Avatar" class="avatar-img" id="sidebar-my-avatar">
                         <span class="status-dot"></span>
                     </div>
                     <div class="user-meta">
                         <span class="my-name" id="sidebar-my-name">Connecting...</span>
-                        <span class="my-id-tag" id="btn-copy-id" title="Click to copy your Socket ID">
+                        <span class="my-id-tag" id="btn-copy-id" title="Click to copy your Clerk ID">
                             <span id="sidebar-my-id">ID: ...</span> 📋
                         </span>
                     </div>
                 </div>
 
                 <div class="sidebar-actions">
+                    <!-- Clerk User Button Mount Target -->
+                    <div id="clerk-user-button-container" class="clerk-user-btn-slot"></div>
                     <!-- New Group Room -->
                     <button class="icon-btn" id="btn-open-group-modal" title="Create / Join Group">
                         <svg viewBox="0 0 24 24"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
@@ -44,6 +130,10 @@
                     <!-- Settings -->
                     <button class="icon-btn" id="btn-open-settings" title="Profile & Settings">
                         <svg viewBox="0 0 24 24"><path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                    </button>
+                    <!-- Sign Out -->
+                    <button class="icon-btn" id="btn-sidebar-sign-out" title="Sign Out">
+                        <svg viewBox="0 0 24 24"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>
                     </button>
                 </div>
             </header>
@@ -113,7 +203,7 @@
                 <!-- System Security Notice -->
                 <div class="system-notice">
                     <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
-                    <span>Messages are transmitted in real-time over Socket.IO.</span>
+                    <span>Messages are verified with Clerk identity and transmitted over Socket.IO.</span>
                 </div>
 
                 <div class="date-divider">Today</div>
@@ -178,29 +268,66 @@
          MODALS & DIALOGS
          ========================================== -->
 
-    <!-- Profile Settings Modal -->
+    <!-- Profile & Clerk Account Modal -->
     <div class="modal-backdrop" id="modal-profile">
         <div class="modal-card">
             <div class="modal-header">
-                <h3 class="modal-title">Your Profile</h3>
+                <h3 class="modal-title">Profile &amp; Clerk Account</h3>
                 <button class="icon-btn modal-close" data-close="modal-profile">✕</button>
             </div>
-            <form class="modal-form" id="form-profile">
+            
+            <div class="profile-modal-body">
+                <!-- User Profile Header Card -->
+                <div class="profile-account-card">
+                    <img src="" id="profile-card-avatar" class="profile-card-avatar" alt="Avatar">
+                    <div class="profile-card-meta">
+                        <h4 id="profile-card-name" class="profile-card-name">User</h4>
+                        <span id="profile-card-email" class="profile-card-email">email@example.com</span>
+                        <span id="profile-card-clerk-id" class="profile-card-clerk-id">ID: user_...</span>
+                    </div>
+                </div>
+
+                <form class="modal-form" id="form-profile">
+                    <div class="form-group">
+                        <label>Status Message</label>
+                        <input type="text" id="input-profile-status" class="form-input" maxlength="60" placeholder="e.g. Hey there! I am using WhatsApp Web.">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn-secondary" id="btn-open-clerk-manage">⚙️ Manage Clerk Account</button>
+                        <button type="submit" class="btn-primary">Save Status</button>
+                    </div>
+                </form>
+
+                <div class="modal-signout-row">
+                    <button type="button" class="btn-danger" id="btn-modal-sign-out">Sign Out of Account</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Clerk API Keys Setup Modal -->
+    <div class="modal-backdrop" id="modal-clerk-setup">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 class="modal-title">Clerk API Keys Setup</h3>
+                <button class="icon-btn modal-close" data-close="modal-clerk-setup">✕</button>
+            </div>
+            <div class="setup-guide-box">
+                <p>1. Open your <strong><a href="https://dashboard.clerk.com" target="_blank" rel="noopener noreferrer">Clerk Dashboard</a></strong></p>
+                <p>2. Go to <strong>API Keys</strong> and copy your keys below:</p>
+            </div>
+            <form class="modal-form" id="form-clerk-keys">
                 <div class="form-group">
-                    <label>Display Name</label>
-                    <input type="text" id="input-profile-name" class="form-input" required maxlength="25">
+                    <label>Publishable Key (`pk_test_...` or `pk_live_...`)</label>
+                    <input type="text" id="input-clerk-pubkey" class="form-input" placeholder="pk_test_..." required>
                 </div>
                 <div class="form-group">
-                    <label>About / Status</label>
-                    <input type="text" id="input-profile-status" class="form-input" maxlength="60">
-                </div>
-                <div class="form-group">
-                    <label>Avatar Seed</label>
-                    <input type="text" id="input-profile-avatar" class="form-input" placeholder="e.g. alex, coder, ninja">
+                    <label>Secret Key (`sk_test_...` or `sk_live_...`)</label>
+                    <input type="password" id="input-clerk-seckey" class="form-input" placeholder="sk_test_..." required>
                 </div>
                 <div class="modal-actions">
-                    <button type="button" class="btn-secondary modal-close" data-close="modal-profile">Cancel</button>
-                    <button type="submit" class="btn-primary">Save Changes</button>
+                    <button type="button" class="btn-secondary modal-close" data-close="modal-clerk-setup">Close</button>
+                    <button type="submit" class="btn-primary" id="btn-save-keys">Save &amp; Connect</button>
                 </div>
             </form>
         </div>
@@ -216,7 +343,7 @@
             <form class="modal-form" id="form-group">
                 <div class="form-group">
                     <label>Group Room Name</label>
-                    <input type="text" id="input-group-name" class="form-input" placeholder="e.g. gaming, developers, chillout" required>
+                    <input type="text" id="input-group-name" class="form-input" placeholder="e.g. engineering, gaming, chillout" required>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary modal-close" data-close="modal-group">Cancel</button>
@@ -235,8 +362,8 @@
             </div>
             <form class="modal-form" id="form-dm">
                 <div class="form-group">
-                    <label>Peer Socket ID</label>
-                    <input type="text" id="input-dm-recipient" class="form-input" placeholder="Enter recipient Socket ID" required>
+                    <label>Recipient Socket ID or Clerk ID</label>
+                    <input type="text" id="input-dm-recipient" class="form-input" placeholder="Enter recipient Socket ID or select from list" required>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn-secondary modal-close" data-close="modal-dm">Cancel</button>
@@ -263,7 +390,7 @@
     <!-- Toast Notification Overlay -->
     <div class="toast-container" id="toast-container"></div>
 
-    <!-- Socket.IO Client Scripts -->
+    <!-- Socket.IO Client Scripts & App Logic -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="script.js"></script>
 </body>

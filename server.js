@@ -1,11 +1,34 @@
-// WhatsApp Web Clone - Real-Time Chat Server with Socket.IO
+// WhatsApp Web Clone - Real-Time Chat Server with Socket.IO & Clerk Authentication
+require('dotenv').config();
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
+const fs = require('fs');
+const { createClerkClient } = require('@clerk/backend');
 
 const app = express();
 const server = http.createServer(app);
+
+// JSON body parser for configuration endpoints
+app.use(express.json());
+
+// Initialize Clerk Backend Client
+const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || '';
+const secretKey = process.env.CLERK_SECRET_KEY || '';
+
+let clerkClient = null;
+if (secretKey) {
+    try {
+        clerkClient = createClerkClient({ secretKey, publishableKey });
+        console.log('✓ Clerk Backend Client initialized successfully.');
+    } catch (err) {
+        console.warn('! Clerk Backend Client initialization warning:', err.message);
+    }
+} else {
+    console.warn('! CLERK_SECRET_KEY not set in .env. Running in setup/fallback mode.');
+}
+
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -17,11 +40,53 @@ const io = new Server(server, {
 // Serve static files from 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Public Auth Configuration Endpoint for Frontend
+app.get('/api/auth/config', (req, res) => {
+    const isConfigured = Boolean(
+        process.env.CLERK_PUBLISHABLE_KEY && 
+        process.env.CLERK_PUBLISHABLE_KEY !== 'pk_test_placeholder' &&
+        process.env.CLERK_SECRET_KEY &&
+        process.env.CLERK_SECRET_KEY !== 'sk_test_placeholder'
+    );
+
+    res.json({
+        publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
+        isConfigured: isConfigured,
+        serverTime: new Date().toISOString()
+    });
+});
+
+// Key Save Endpoint (allows setting keys directly from the setup banner if needed)
+app.post('/api/auth/config', (req, res) => {
+    const { publishableKey: newPubKey, secretKey: newSecKey } = req.body;
+    if (!newPubKey || !newSecKey) {
+        return res.status(400).json({ error: 'Both publishableKey and secretKey are required.' });
+    }
+
+    try {
+        process.env.CLERK_PUBLISHABLE_KEY = newPubKey.trim();
+        process.env.CLERK_SECRET_KEY = newSecKey.trim();
+
+        // Update .env file on disk
+        const envContent = `# Clerk Authentication Configuration\nCLERK_PUBLISHABLE_KEY=${newPubKey.trim()}\nCLERK_SECRET_KEY=${newSecKey.trim()}\nPORT=${process.env.PORT || 4000}\n`;
+        fs.writeFileSync(path.join(__dirname, '.env'), envContent, 'utf-8');
+
+        // Re-initialize clerk client
+        clerkClient = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY, publishableKey: process.env.CLERK_PUBLISHABLE_KEY });
+        console.log('✓ Updated Clerk keys and reinitialized backend client.');
+
+        res.json({ success: true, message: 'Clerk configuration updated successfully!' });
+    } catch (err) {
+        console.error('Error saving keys:', err);
+        res.status(500).json({ error: 'Failed to save configuration.' });
+    }
+});
+
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Store connected users: socket.id -> { id, name, avatar, status }
+// Store connected users: socket.id -> { id, clerkId, name, avatar, email, status }
 const users = new Map();
 
 // Helper to broadcast updated user list
@@ -30,32 +95,86 @@ function broadcastUsers() {
     io.emit('user-list-updated', userList);
 }
 
-// Generate friendly default username
-function generateDefaultName(socketId) {
-    return `User ${socketId.substring(0, 4).toUpperCase()}`;
-}
+// Socket.IO Clerk Authentication Middleware
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token;
+    const clientUser = socket.handshake.auth?.user;
+
+    const isKeysConfigured = Boolean(
+        process.env.CLERK_SECRET_KEY && 
+        process.env.CLERK_SECRET_KEY !== 'sk_test_placeholder'
+    );
+
+    if (isKeysConfigured && clerkClient) {
+        if (!token) {
+            return next(new Error('Authentication error: Missing Clerk session token. Please sign in.'));
+        }
+
+        try {
+            // Verify session token via Clerk
+            const sessionClaims = await clerkClient.verifyToken(token);
+            const clerkUserId = sessionClaims.sub;
+
+            let clerkUser = null;
+            try {
+                clerkUser = await clerkClient.users.getUser(clerkUserId);
+            } catch (userErr) {
+                console.warn(`Could not fetch full profile for ${clerkUserId}:`, userErr.message);
+            }
+
+            const fullName = clerkUser
+                ? `${clerkUser.firstName || ''} ${clerkUser.lastName || ''}`.trim() || clerkUser.username || clerkUser.emailAddresses?.[0]?.emailAddress || 'User'
+                : clientUser?.name || `Clerk User (${clerkUserId.substring(0, 6)})`;
+
+            const avatar = clerkUser?.imageUrl || clientUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${clerkUserId}`;
+            const email = clerkUser?.emailAddresses?.[0]?.emailAddress || clientUser?.email || '';
+
+            socket.data.user = {
+                id: socket.id,
+                clerkId: clerkUserId,
+                name: fullName,
+                avatar: avatar,
+                email: email,
+                status: 'Hey there! I am using WhatsApp Web.'
+            };
+
+            return next();
+        } catch (err) {
+            console.error('Socket.IO Clerk token verification failed:', err.message);
+            return next(new Error('Authentication error: Invalid or expired Clerk session token.'));
+        }
+    } else {
+        // Fallback / Development Mode when keys are not yet configured in .env
+        const defaultName = clientUser?.name || `Guest ${socket.id.substring(0, 4).toUpperCase()}`;
+        const defaultAvatar = clientUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${socket.id}`;
+        
+        socket.data.user = {
+            id: socket.id,
+            clerkId: clientUser?.id || `demo_${socket.id}`,
+            name: defaultName,
+            avatar: defaultAvatar,
+            email: clientUser?.email || '',
+            status: 'Hey there! I am using WhatsApp Web.'
+        };
+        return next();
+    }
+});
 
 io.on('connection', (socket) => {
-    console.log(`User connected: ${socket.id}`);
+    const userProfile = socket.data.user;
+    console.log(`User connected: ${userProfile.name} (${socket.id}, Clerk: ${userProfile.clerkId})`);
 
-    // Default user profile
-    const defaultUser = {
-        id: socket.id,
-        name: generateDefaultName(socket.id),
-        avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${socket.id}`,
-        status: 'Hey there! I am using WhatsApp Web.'
-    };
-    users.set(socket.id, defaultUser);
+    users.set(socket.id, userProfile);
 
     // Send the user their own profile info
-    socket.emit('init-profile', defaultUser);
+    socket.emit('init-profile', userProfile);
 
     // Broadcast updated user list to everyone
     broadcastUsers();
 
-    // 1. UPDATE PROFILE (Name / Avatar / Status)
+    // 1. UPDATE PROFILE (Status / Name override)
     socket.on('update-profile', ({ name, avatar, status }) => {
-        const user = users.get(socket.id) || { id: socket.id };
+        const user = users.get(socket.id) || socket.data.user;
         if (name) user.name = name.trim();
         if (avatar) user.avatar = avatar;
         if (status) user.status = status.trim();
@@ -67,11 +186,12 @@ io.on('connection', (socket) => {
 
     // 2. GLOBAL BROADCAST
     socket.on('send-broadcast', (data) => {
-        const user = users.get(socket.id) || { name: 'Anonymous', avatar: '' };
+        const user = users.get(socket.id) || socket.data.user;
         const payload = {
             id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             chatId: 'global',
             senderId: socket.id,
+            senderClerkId: user.clerkId,
             senderName: user.name,
             senderAvatar: user.avatar,
             text: data.text || '',
@@ -84,7 +204,7 @@ io.on('connection', (socket) => {
     // 3. JOIN ROOM (Group Chat)
     socket.on('join-room', (room) => {
         socket.join(room);
-        const user = users.get(socket.id) || { name: 'User' };
+        const user = users.get(socket.id) || socket.data.user;
         console.log(`Socket ${socket.id} (${user.name}) joined room: ${room}`);
 
         socket.to(room).emit('room-system-message', {
@@ -97,7 +217,7 @@ io.on('connection', (socket) => {
     // LEAVE ROOM
     socket.on('leave-room', (room) => {
         socket.leave(room);
-        const user = users.get(socket.id) || { name: 'User' };
+        const user = users.get(socket.id) || socket.data.user;
         socket.to(room).emit('room-system-message', {
             room: room,
             message: `${user.name} left the group`,
@@ -107,12 +227,13 @@ io.on('connection', (socket) => {
 
     // 4. GROUP ROOM MESSAGE
     socket.on('send-room-message', ({ room, text, attachment }) => {
-        const user = users.get(socket.id) || { name: 'User', avatar: '' };
+        const user = users.get(socket.id) || socket.data.user;
         const payload = {
             id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
             chatId: room,
             room: room,
             senderId: socket.id,
+            senderClerkId: user.clerkId,
             senderName: user.name,
             senderAvatar: user.avatar,
             text: text || '',
@@ -124,13 +245,14 @@ io.on('connection', (socket) => {
 
     // 5. DIRECT 1-to-1 MESSAGE
     socket.on('send-direct-message', ({ recipientId, text, attachment }) => {
-        const user = users.get(socket.id) || { name: 'User', avatar: '' };
+        const user = users.get(socket.id) || socket.data.user;
         const messageId = 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
         const timestamp = new Date().toISOString();
 
         const payload = {
             id: messageId,
             senderId: socket.id,
+            senderClerkId: user.clerkId,
             senderName: user.name,
             senderAvatar: user.avatar,
             recipientId: recipientId,
@@ -139,7 +261,7 @@ io.on('connection', (socket) => {
             timestamp: timestamp
         };
 
-        // Deliver directly to recipient
+        // Deliver directly to recipient socket
         socket.to(recipientId).emit('receive-direct-message', payload);
 
         // Acknowledge back to sender with confirmation
@@ -148,7 +270,7 @@ io.on('connection', (socket) => {
 
     // 6. TYPING INDICATORS
     socket.on('typing', ({ targetType, targetId }) => {
-        const user = users.get(socket.id) || { name: 'Someone' };
+        const user = users.get(socket.id) || socket.data.user;
         if (targetType === 'global') {
             socket.broadcast.emit('user-typing', {
                 chatId: 'global',
@@ -163,7 +285,7 @@ io.on('connection', (socket) => {
             });
         } else if (targetType === 'direct') {
             socket.to(targetId).emit('user-typing', {
-                chatId: socket.id, // for recipient, the chat is keyed by sender's socket.id
+                chatId: socket.id,
                 userId: socket.id,
                 userName: user.name
             });
@@ -210,7 +332,8 @@ io.on('connection', (socket) => {
 
     // 8. DISCONNECT
     socket.on('disconnect', () => {
-        console.log(`User disconnected: ${socket.id}`);
+        const user = users.get(socket.id);
+        console.log(`User disconnected: ${user?.name || socket.id}`);
         users.delete(socket.id);
         broadcastUsers();
     });

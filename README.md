@@ -1,113 +1,80 @@
-# Socketchat 👋
+# WhatsApp Web Clone with Clerk Authentication & Socket.IO 👋
 
-Welcome! This is a very simple guide to understanding how Socket.IO works. We will explain everything step-by-step in easy English.
-
-## 🚀 How to Run the App
-
-1. **Install everything:** Open your terminal and type `npm install`
-2. **Start the server:** Type `node server.js`
-3. **Open the app:** Open your web browser and go to: `http://localhost:4000`
-4. **Test it:** Open the same link in a second tab or window so you can chat with yourself!
+A modern, high-fidelity WhatsApp Web clone powered by **Clerk Authentication** and real-time **Socket.IO** messaging.
 
 ---
 
-## 💡 What can this app do?
+## ⚡ Key Features
 
-This app shows 3 ways to send messages using Socket.IO:
-1. **Broadcast**: Send a message to **everyone** who is connected.
-2. **Rooms**: Join a special room and only talk to people **in that room**.
-3. **Direct Message**: Send a private message to **one specific person** using their ID.
+- 🔐 **Clerk Authentication**: Secure sign-in with Google, Email, GitHub, SMS, and OAuth providers.
+- 🛡️ **JWT Session Verification**: Socket.IO handshake protected by Clerk token verification middleware.
+- 💬 **Real-Time Messaging**: Broadcast channels, private groups, and 1-on-1 direct messages.
+- 👤 **Clerk Profile & User Management**: Synced name, avatar, email, and Clerk User Button.
+- ⚙️ **In-App API Key Configuration**: Easily configure your Clerk API keys through the UI or `.env`.
+- 🎨 **WhatsApp Web Aesthetics**: Sleek dark mode design, sound synthesis, reaction ribbons, typing indicators, image attachments, and call simulator.
 
 ---
 
-## 📝 Understanding the Code (Very Easy)
+## 🚀 How to Run the Application
 
-Socket.IO works like a telephone.
-* The **Server (`server.js`)** is the telephone operator connecting everyone.
-* The **Client (`public/script.js`)** is your personal telephone in your browser.
-
-### 1. `server.js` (The Server)
-This file runs on your computer. It waits for people to connect and passes their messages around.
-
-```javascript
-// This runs when a new user connects to the server
-io.on('connection', (socket) => {
-    
-    // 1. BROADCAST: When someone sends a broadcast message...
-    socket.on('send-broadcast', (message) => {
-        // 'io.emit()' sends it to EVERYONE
-        io.emit('receive-broadcast', { sender: socket.id, message: message });
-    });
-
-    // 2. ROOMS: When someone wants to join a room...
-    socket.on('join-room', (room) => {
-        // 'socket.join()' puts them in that room
-        socket.join(room); 
-    });
-
-    // When someone sends a message to a room...
-    socket.on('send-room-message', ({ room, message }) => {
-        // 'io.to(room).emit()' sends to EVERYONE inside that room
-        io.to(room).emit('room-message', { sender: socket.id, message: message });
-    });
-
-    // 3. DIRECT MESSAGES: When someone sends a private message...
-    socket.on('send-direct-message', ({ recipientId, message }) => {
-        // 'socket.to(id).emit()' sends ONLY to that specific person
-        socket.to(recipientId).emit('direct-message', { sender: socket.id, message: message });
-    });
-});
+### 1. Install Dependencies
+```bash
+npm install
 ```
 
-### 2. `public/script.js` (The Client / Browser)
-This file runs in your web browser. It sends your typed messages to the server, and listens for new messages coming from the server.
-
-```javascript
-// Connect your browser to the server
-const socket = io();
-
-
-// --- HOW WE SEND MESSAGES TO THE SERVER ---
-
-// 1. Send a broadcast message
-socket.emit('send-broadcast', "Hello everyone!");
-
-// 2. Join a room
-socket.emit('join-room', "GamingRoom");
-
-// 3. Send a message to the room
-socket.emit('send-room-message', { room: "GamingRoom", message: "Hi gamers!" });
-
-// 4. Send a private direct message
-socket.emit('send-direct-message', { recipientId: "some-user-id", message: "Hello friend!" });
-
-
-// --- HOW WE RECEIVE MESSAGES FROM THE SERVER ---
-
-// 1. Listen for broadcast messages
-socket.on('receive-broadcast', (data) => {
-    console.log(data.sender + " says: " + data.message);
-});
-
-// 2. Listen for room messages
-socket.on('room-message', (data) => {
-    console.log(data.sender + " says: " + data.message);
-});
-
-// 3. Listen for private direct messages
-socket.on('direct-message', (data) => {
-    console.log("Private message from " + data.sender + ": " + data.message);
-});
+### 2. Configure Clerk Keys
+Create a `.env` file (or copy `.env.example`):
+```bash
+cp .env.example .env
 ```
+
+Add your keys from the [Clerk Dashboard](https://dashboard.clerk.com):
+```env
+CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+PORT=4000
+```
+*(Note: If you run without keys, the app provides an in-app setup modal as well as a one-click Guest/Demo mode).*
+
+### 3. Start the Server
+```bash
+npm start
+```
+or with auto-reload:
+```bash
+npm run dev
+```
+
+### 4. Open the App
+Visit [http://localhost:4000](http://localhost:4000) in your browser.
 
 ---
 
-## 🔑 5 Key Words to Remember!
+## 🏗️ Architecture & Authentication Flow
 
-If you remember these, you understand Socket.IO!
+1. **Frontend Authentication (`public/index.html` & `public/script.js`)**:
+   - Loads the `@clerk/clerk-js` SDK.
+   - Signs in the user via Clerk Modal or embedded sign-in.
+   - Retrieves a fresh JWT session token via `Clerk.session.getToken()`.
+   - Passes the token in the Socket.IO connection handshake: `io({ auth: { token } })`.
 
-1. `socket.emit(...)` 👉 **"I am sending a message."**
-2. `socket.on(...)` 👉 **"I am listening for a message."**
-3. `io.emit(...)` 👉 **"Server is sending a message to EVERYONE."**
-4. `socket.join(...)` 👉 **"Server is putting this person in a room."**
-5. `io.to(...).emit(...)` 👉 **"Server is sending a message to a specific room or person."**
+2. **Backend Verification (`server.js`)**:
+   - Uses `@clerk/backend` to verify the session JWT in `io.use()` middleware.
+   - Fetches authenticated Clerk user metadata (`clerkClient.users.getUser()`).
+   - Associates authenticated identity with active real-time socket connections.
+
+---
+
+## 📁 Project Structure
+
+```
+socketio-demo/
+├── .env.example         # Template for Clerk API keys
+├── .env                 # Local environment variables
+├── package.json         # Node.js dependencies (@clerk/backend, socket.io, express, dotenv)
+├── server.js            # Express server with Clerk JWT Socket.IO middleware
+└── public/
+    ├── index.html       # WhatsApp Web UI + Clerk Auth Portal
+    ├── style.css        # WhatsApp Web Dark Theme & Clerk styling
+    └── script.js        # Frontend real-time logic, sound synthesis, & Clerk auth
+```
