@@ -370,8 +370,14 @@ async function initClerkAuth() {
                 clerk = new clerk(pubKey);
             }
 
+            const currentUrl = window.location.origin + window.location.pathname;
+
             if (clerk && typeof clerk.load === 'function' && !clerk.loaded) {
                 await clerk.load({
+                    afterSignInUrl: currentUrl,
+                    afterSignUpUrl: currentUrl,
+                    signInFallbackRedirectUrl: currentUrl,
+                    signUpFallbackRedirectUrl: currentUrl,
                     appearance: {
                         variables: {
                             colorPrimary: '#00a884',
@@ -386,6 +392,34 @@ async function initClerkAuth() {
                 });
             }
             state.clerk = clerk;
+
+            // Mount direct SignIn widget inside the auth portal container
+            if (clerkMountContainer && typeof clerk.mountSignIn === 'function' && !clerk.user) {
+                try {
+                    clerkMountContainer.innerHTML = '';
+                    clerk.mountSignIn(clerkMountContainer, {
+                        afterSignInUrl: currentUrl,
+                        afterSignUpUrl: currentUrl,
+                        signInFallbackRedirectUrl: currentUrl,
+                        signUpFallbackRedirectUrl: currentUrl,
+                        fallbackRedirectUrl: currentUrl,
+                        appearance: {
+                            variables: {
+                                colorPrimary: '#00a884',
+                                colorBackground: '#111b21',
+                                colorInputBackground: '#202c33',
+                                colorInputText: '#e9edef',
+                                colorText: '#e9edef',
+                                colorTextSecondary: '#8696a0',
+                                colorNeutral: '#222e35'
+                            }
+                        }
+                    });
+                    if (authQrFallback) authQrFallback.style.display = 'none';
+                } catch (mountErr) {
+                    console.warn('Could not mount SignIn widget directly:', mountErr);
+                }
+            }
 
             // Handle Clerk state changes
             if (clerk && typeof clerk.addListener === 'function') {
@@ -1412,7 +1446,25 @@ btnEndCall.onclick = () => {
 
 btnClerkSignin.onclick = () => {
     if (state.clerk) {
-        state.clerk.openSignIn();
+        const currentUrl = window.location.origin + window.location.pathname;
+        state.clerk.openSignIn({
+            afterSignInUrl: currentUrl,
+            afterSignUpUrl: currentUrl,
+            signInFallbackRedirectUrl: currentUrl,
+            signUpFallbackRedirectUrl: currentUrl,
+            fallbackRedirectUrl: currentUrl,
+            appearance: {
+                variables: {
+                    colorPrimary: '#00a884',
+                    colorBackground: '#111b21',
+                    colorInputBackground: '#202c33',
+                    colorInputText: '#e9edef',
+                    colorText: '#e9edef',
+                    colorTextSecondary: '#8696a0',
+                    colorNeutral: '#222e35'
+                }
+            }
+        });
     } else {
         openModal(modalClerkSetup);
     }
@@ -1420,11 +1472,49 @@ btnClerkSignin.onclick = () => {
 
 btnClerkSignup.onclick = () => {
     if (state.clerk) {
-        state.clerk.openSignUp();
+        const currentUrl = window.location.origin + window.location.pathname;
+        state.clerk.openSignUp({
+            afterSignInUrl: currentUrl,
+            afterSignUpUrl: currentUrl,
+            signInFallbackRedirectUrl: currentUrl,
+            signUpFallbackRedirectUrl: currentUrl,
+            fallbackRedirectUrl: currentUrl,
+            appearance: {
+                variables: {
+                    colorPrimary: '#00a884',
+                    colorBackground: '#111b21',
+                    colorInputBackground: '#202c33',
+                    colorInputText: '#e9edef',
+                    colorText: '#e9edef',
+                    colorTextSecondary: '#8696a0',
+                    colorNeutral: '#222e35'
+                }
+            }
+        });
     } else {
         openModal(modalClerkSetup);
     }
 };
+
+if (btnOpenClerkManage) {
+    btnOpenClerkManage.onclick = () => {
+        if (state.clerk && typeof state.clerk.openUserProfile === 'function') {
+            state.clerk.openUserProfile();
+        } else {
+            showToast('Manage Clerk Account is available for authenticated accounts.');
+        }
+    };
+}
+
+if (btnModalSignOut) {
+    btnModalSignOut.onclick = async () => {
+        if (state.clerk && typeof state.clerk.signOut === 'function') {
+            await state.clerk.signOut();
+        }
+        closeModal(modalProfile);
+        handleUserSignedOut();
+    };
+}
 
 btnDemoGuest.onclick = () => {
     state.isGuest = true;
