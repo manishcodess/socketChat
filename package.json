@@ -1,22 +1,28 @@
 {
   "name": "socketchat",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "WhatsApp Web Clone - Real-Time Chat App with Clerk Authentication & Socket.IO",
   "scripts": {
-    "start": "node server.js",
-    "dev": "node --watch server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "dev:backend": "npm run dev --prefix backend",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "start": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm start --prefix backend\" \"npm start --prefix frontend\"",
+    "start:backend": "npm start --prefix backend",
+    "start:frontend": "npm start --prefix frontend",
+    "build:frontend": "npm run build --prefix frontend",
+    "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
   },
-  "keywords": [],
+  "keywords": [
+    "whatsapp-clone",
+    "clerk",
+    "socket.io",
+    "realtime-chat",
+    "fullstack"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
-  "dependencies": {
-    "@clerk/backend": "^3.18.1",
-    "@clerk/express": "^2.1.69",
-    "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "socket.io": "^4.8.3"
+  "devDependencies": {
+    "concurrently": "^9.1.2"
   }
 }

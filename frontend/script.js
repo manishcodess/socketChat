@@ -2,6 +2,14 @@
 // WhatsApp Web Clone - Frontend Real-Time Logic with Clerk & Socket.IO
 // ==========================================================================
 
+// Dynamic Backend Server URL resolution
+// Automatically points to backend server on port 4000 when frontend runs on port 3000 / 5173
+const BACKEND_URL = window.BACKEND_URL || (
+    window.location.port === '4000'
+        ? ''
+        : `${window.location.protocol}//${window.location.hostname}:4000`
+);
+
 // Global Application State
 const state = {
     authConfig: {
@@ -312,7 +320,7 @@ function escapeHtml(str) {
 
 async function fetchAuthConfig() {
     try {
-        const res = await fetch('/api/auth/config');
+        const res = await fetch(`${BACKEND_URL}/api/auth/config`);
         const data = await res.json();
         state.authConfig = data;
         return data;
@@ -462,7 +470,7 @@ function connectSocket(token, userProfile) {
         state.socket.disconnect();
     }
 
-    state.socket = io({
+    state.socket = io(BACKEND_URL || undefined, {
         auth: {
             token: token,
             user: userProfile
@@ -1344,7 +1352,7 @@ formClerkKeys.onsubmit = async (e) => {
     }
 
     try {
-        const res = await fetch('/api/auth/config', {
+        const res = await fetch(`${BACKEND_URL}/api/auth/config`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ publishableKey: pubKey, secretKey: secKey })

@@ -1,6 +1,8 @@
-// WhatsApp Web Clone - Real-Time Chat Server with Socket.IO & Clerk Authentication
+// WhatsApp Web Clone - Real-Time Chat Backend Server
+// Powered by Express, Socket.IO & Clerk Authentication
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
@@ -10,6 +12,13 @@ const { createClerkClient } = require('@clerk/backend');
 const app = express();
 const server = http.createServer(app);
 
+// Enable CORS for all cross-origin requests from the frontend client
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 // JSON body parser for configuration endpoints
 app.use(express.json());
 
@@ -18,7 +27,7 @@ const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || '';
 const secretKey = process.env.CLERK_SECRET_KEY || '';
 
 let clerkClient = null;
-if (secretKey) {
+if (secretKey && secretKey !== 'sk_test_placeholder') {
     try {
         clerkClient = createClerkClient({ secretKey, publishableKey });
         console.log('✓ Clerk Backend Client initialized successfully.');
@@ -26,7 +35,7 @@ if (secretKey) {
         console.warn('! Clerk Backend Client initialization warning:', err.message);
     }
 } else {
-    console.warn('! CLERK_SECRET_KEY not set in .env. Running in setup/fallback mode.');
+    console.warn('! CLERK_SECRET_KEY not set in backend .env. Running in setup/fallback mode.');
 }
 
 const io = new Server(server, {
@@ -37,8 +46,15 @@ const io = new Server(server, {
     maxHttpBufferSize: 5e6 // 5MB for image attachments
 });
 
-// Serve static files from 'public'
-app.use(express.static(path.join(__dirname, 'public')));
+// Health check route
+app.get('/', (req, res) => {
+    res.json({
+        status: 'online',
+        service: 'WhatsApp Web Clone Real-Time Backend',
+        port: process.env.PORT || 4000,
+        timestamp: new Date().toISOString()
+    });
+});
 
 // Public Auth Configuration Endpoint for Frontend
 app.get('/api/auth/config', (req, res) => {
@@ -56,7 +72,7 @@ app.get('/api/auth/config', (req, res) => {
     });
 });
 
-// Key Save Endpoint (allows setting keys directly from the setup banner if needed)
+// Key Save Endpoint (allows setting keys directly from setup modal in frontend)
 app.post('/api/auth/config', (req, res) => {
     const { publishableKey: newPubKey, secretKey: newSecKey } = req.body;
     if (!newPubKey || !newSecKey) {
@@ -67,7 +83,7 @@ app.post('/api/auth/config', (req, res) => {
         process.env.CLERK_PUBLISHABLE_KEY = newPubKey.trim();
         process.env.CLERK_SECRET_KEY = newSecKey.trim();
 
-        // Update .env file on disk
+        // Update backend .env file on disk
         const envContent = `# Clerk Authentication Configuration\nCLERK_PUBLISHABLE_KEY=${newPubKey.trim()}\nCLERK_SECRET_KEY=${newSecKey.trim()}\nPORT=${process.env.PORT || 4000}\n`;
         fs.writeFileSync(path.join(__dirname, '.env'), envContent, 'utf-8');
 
@@ -80,10 +96,6 @@ app.post('/api/auth/config', (req, res) => {
         console.error('Error saving keys:', err);
         res.status(500).json({ error: 'Failed to save configuration.' });
     }
-});
-
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // Store connected users: socket.id -> { id, clerkId, name, avatar, email, status }
@@ -341,5 +353,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-    console.log(`WhatsApp Web Clone running at http://localhost:${PORT}`);
+    console.log(`✓ WhatsApp Web Backend Server running at http://localhost:${PORT}`);
 });
