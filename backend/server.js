@@ -23,7 +23,7 @@ app.use(cors({
 app.use(express.json());
 
 // Initialize Clerk Backend Client
-const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || '';
+const publishableKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
 const secretKey = process.env.CLERK_SECRET_KEY || '';
 
 let clerkClient = null;
@@ -58,15 +58,17 @@ app.get('/', (req, res) => {
 
 // Public Auth Configuration Endpoint for Frontend
 app.get('/api/auth/config', (req, res) => {
+    const pubKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || '';
+    const secKey = process.env.CLERK_SECRET_KEY || '';
     const isConfigured = Boolean(
-        process.env.CLERK_PUBLISHABLE_KEY && 
-        process.env.CLERK_PUBLISHABLE_KEY !== 'pk_test_placeholder' &&
-        process.env.CLERK_SECRET_KEY &&
-        process.env.CLERK_SECRET_KEY !== 'sk_test_placeholder'
+        pubKey && 
+        pubKey !== 'pk_test_placeholder' &&
+        secKey &&
+        secKey !== 'sk_test_placeholder'
     );
 
     res.json({
-        publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
+        publishableKey: pubKey,
         isConfigured: isConfigured,
         serverTime: new Date().toISOString()
     });

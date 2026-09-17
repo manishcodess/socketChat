@@ -1,31 +1,56 @@
-# WhatsApp Web Clone with Clerk Authentication & Socket.IO 👋
+# WhatsApp Web Clone (Separate Frontend & Backend) 👋
 
-A modern, high-fidelity WhatsApp Web clone powered by **Clerk Authentication** and real-time **Socket.IO** messaging.
+A modern, full-stack WhatsApp Web clone built with a separated **Frontend** (Vite + Vanilla JS/CSS + Clerk Browser SDK) and **Backend** (Express + Socket.IO + Clerk Backend JWT Verification).
+
+---
+
+## 📁 Project Architecture
+
+```
+socketchat/
+├── package.json              # Monorepo root orchestration scripts (concurrently)
+├── README.md                 # Project documentation
+│
+├── backend/                  # 🛡️ Real-Time API & WebSocket Server
+│   ├── package.json          # Express, Socket.IO, @clerk/backend, cors, dotenv
+│   ├── server.js             # API routes & Socket.IO handlers with CORS
+│   ├── .env.example          # Backend environment variables template
+│   └── .env                  # Backend environment variables
+│
+└── frontend/                 # 💻 Client Web Application
+    ├── package.json          # Vite dev server & build tooling
+    ├── index.html            # WhatsApp Web UI + Clerk Auth Portal
+    ├── style.css             # WhatsApp Web Dark Theme
+    └── script.js             # Frontend real-time logic, sound synthesis, & Clerk auth
+```
 
 ---
 
 ## ⚡ Key Features
 
-- 🔐 **Clerk Authentication**: Secure sign-in with Google, Email, GitHub, SMS, and OAuth providers.
-- 🛡️ **JWT Session Verification**: Socket.IO handshake protected by Clerk token verification middleware.
-- 💬 **Real-Time Messaging**: Broadcast channels, private groups, and 1-on-1 direct messages.
-- 👤 **Clerk Profile & User Management**: Synced name, avatar, email, and Clerk User Button.
-- ⚙️ **In-App API Key Configuration**: Easily configure your Clerk API keys through the UI or `.env`.
-- 🎨 **WhatsApp Web Aesthetics**: Sleek dark mode design, sound synthesis, reaction ribbons, typing indicators, image attachments, and call simulator.
+- 🔐 **Clerk Authentication**: Sign in via Google, Email, GitHub, SMS, and OAuth providers.
+- 🛡️ **JWT Session Verification**: Socket.IO connection protected by backend Clerk JWT verification middleware.
+- 💬 **Real-Time Messaging**: Broadcast channels, private group rooms, and direct 1-to-1 chats.
+- 🌐 **Clean Frontend / Backend Separation**:
+  - Independent `package.json` for backend and frontend.
+  - Express CORS enabled for cross-origin API calls (`/api/auth/config`).
+  - Dynamic `BACKEND_URL` resolution for flexible deployment.
+- 🎨 **WhatsApp Web UI**: Sleek dark mode design, sound synthesis, reaction ribbons, typing indicators, image attachments, and call simulator.
 
 ---
 
-## 🚀 How to Run the Application
+## 🚀 Quick Start Guide
 
-### 1. Install Dependencies
+### 1. Install All Dependencies
+From the repository root, install dependencies for the root orchestrator, backend, and frontend:
 ```bash
-npm install
+npm run install:all
 ```
 
 ### 2. Configure Clerk Keys
-Create a `.env` file (or copy `.env.example`):
+Copy `.env.example` in `backend/`:
 ```bash
-cp .env.example .env
+cp backend/.env.example backend/.env
 ```
 
 Add your keys from the [Clerk Dashboard](https://dashboard.clerk.com):
@@ -36,45 +61,52 @@ PORT=4000
 ```
 *(Note: If you run without keys, the app provides an in-app setup modal as well as a one-click Guest/Demo mode).*
 
-### 3. Start the Server
-```bash
-npm start
-```
-or with auto-reload:
+### 3. Run Both Services Concurrently
 ```bash
 npm run dev
 ```
-
-### 4. Open the App
-Visit [http://localhost:4000](http://localhost:4000) in your browser.
-
----
-
-## 🏗️ Architecture & Authentication Flow
-
-1. **Frontend Authentication (`public/index.html` & `public/script.js`)**:
-   - Loads the `@clerk/clerk-js` SDK.
-   - Signs in the user via Clerk Modal or embedded sign-in.
-   - Retrieves a fresh JWT session token via `Clerk.session.getToken()`.
-   - Passes the token in the Socket.IO connection handshake: `io({ auth: { token } })`.
-
-2. **Backend Verification (`server.js`)**:
-   - Uses `@clerk/backend` to verify the session JWT in `io.use()` middleware.
-   - Fetches authenticated Clerk user metadata (`clerkClient.users.getUser()`).
-   - Associates authenticated identity with active real-time socket connections.
+- **Backend API & Socket.IO**: [http://localhost:4000](http://localhost:4000)
+- **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
 
 ---
 
-## 📁 Project Structure
+## 🛠️ Individual Service Commands
 
+### Backend Only (`backend/`)
+```bash
+# Run backend development server (with --watch)
+npm run dev:backend
+
+# Or directly from backend folder:
+cd backend
+npm run dev
 ```
-socketio-demo/
-├── .env.example         # Template for Clerk API keys
-├── .env                 # Local environment variables
-├── package.json         # Node.js dependencies (@clerk/backend, socket.io, express, dotenv)
-├── server.js            # Express server with Clerk JWT Socket.IO middleware
-└── public/
-    ├── index.html       # WhatsApp Web UI + Clerk Auth Portal
-    ├── style.css        # WhatsApp Web Dark Theme & Clerk styling
-    └── script.js        # Frontend real-time logic, sound synthesis, & Clerk auth
+
+### Frontend Only (`frontend/`)
+```bash
+# Run frontend development server (Vite on port 3000)
+npm run dev:frontend
+
+# Build frontend for production
+npm run build:frontend
+
+# Or directly from frontend folder:
+cd frontend
+npm run dev
 ```
+
+---
+
+## 🔐 Authentication & Real-Time Flow
+
+1. **Frontend (`frontend/index.html` & `frontend/script.js`)**:
+   - Queries `GET http://localhost:4000/api/auth/config` to dynamically retrieve the Clerk Publishable Key.
+   - Initializes Clerk JS Browser SDK.
+   - Upon sign-in, obtains the JWT session token (`Clerk.session.getToken()`).
+   - Connects to Socket.IO server: `io(BACKEND_URL, { auth: { token, user } })`.
+
+2. **Backend (`backend/server.js`)**:
+   - Handles CORS for cross-origin frontend requests.
+   - Uses `@clerk/backend` to verify session JWT tokens in Socket.IO middleware.
+   - Associates authenticated user details (`name`, `avatar`, `email`, `clerkId`) with the socket.
+   - Broadcasts real-time events across rooms and direct channels.

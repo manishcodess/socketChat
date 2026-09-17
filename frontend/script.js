@@ -334,35 +334,64 @@ async function initClerkAuth() {
     const config = await fetchAuthConfig();
     const pubKey = config.publishableKey;
 
-    if (pubKey && pubKey !== 'pk_test_placeholder' && window.Clerk) {
+    if (pubKey && pubKey !== 'pk_test_placeholder') {
         try {
-            const clerk = new window.Clerk(pubKey);
-            await clerk.load({
-                appearance: {
-                    variables: {
-                        colorPrimary: '#00a884',
-                        colorBackground: '#111b21',
-                        colorInputBackground: '#202c33',
-                        colorInputText: '#e9edef',
-                        colorText: '#e9edef',
-                        colorTextSecondary: '#8696a0',
-                        colorNeutral: '#222e35'
+            // Wait for window.Clerk to be attached from browser script tag
+            let clerk = window.Clerk;
+            if (!clerk) {
+                await new Promise((resolve) => {
+                    let attempts = 0;
+                    const timer = setInterval(() => {
+                        attempts++;
+                        if (window.Clerk || attempts > 60) {
+                            clearInterval(timer);
+                            resolve();
+                        }
+                    }, 50);
+                });
+                clerk = window.Clerk;
+            }
+
+            if (!clerk) {
+                console.warn('Clerk SDK not loaded on window.');
+                showAuthPortal();
+                return;
+            }
+
+            if (typeof clerk === 'function') {
+                clerk = new clerk(pubKey);
+            }
+
+            if (clerk && typeof clerk.load === 'function' && !clerk.loaded) {
+                await clerk.load({
+                    appearance: {
+                        variables: {
+                            colorPrimary: '#00a884',
+                            colorBackground: '#111b21',
+                            colorInputBackground: '#202c33',
+                            colorInputText: '#e9edef',
+                            colorText: '#e9edef',
+                            colorTextSecondary: '#8696a0',
+                            colorNeutral: '#222e35'
+                        }
                     }
-                }
-            });
+                });
+            }
             state.clerk = clerk;
 
             // Handle Clerk state changes
-            clerk.addListener(async ({ user }) => {
-                if (user) {
-                    await handleUserSignedIn(user);
-                } else if (!state.isGuest) {
-                    handleUserSignedOut();
-                }
-            });
+            if (clerk && typeof clerk.addListener === 'function') {
+                clerk.addListener(async ({ user }) => {
+                    if (user) {
+                        await handleUserSignedIn(user);
+                    } else if (!state.isGuest) {
+                        handleUserSignedOut();
+                    }
+                });
+            }
 
             // Initial auth status
-            if (clerk.user) {
+            if (clerk && clerk.user) {
                 await handleUserSignedIn(clerk.user);
             } else {
                 showAuthPortal();
