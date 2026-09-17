@@ -1,5 +1,5 @@
 // ==========================================================================
-// WhatsApp Web Clone - Frontend Real-Time Logic with Clerk & Socket.IO
+// SocketChat - Frontend Real-Time Logic with Clerk & Socket.IO
 // ==========================================================================
 
 // Dynamic Backend Server URL resolution
@@ -33,7 +33,7 @@ const state = {
         name: 'You',
         email: '',
         avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=me',
-        status: 'Hey there! I am using WhatsApp Web.'
+        status: 'Hey there! I am using SocketChat.'
     },
     activeChat: {
         type: 'global', // 'global' | 'room' | 'direct'
@@ -51,7 +51,7 @@ const state = {
             status: 'Broadcast Channel',
             messages: [],
             unread: 0,
-            lastMessage: 'Welcome to WhatsApp Web broadcast!',
+            lastMessage: 'Welcome to SocketChat broadcast!',
             lastTime: ''
         },
         'room_general': {
@@ -434,7 +434,7 @@ async function handleUserSignedIn(clerkUser) {
         name: fullName,
         email: email,
         avatar: avatar,
-        status: 'Hey there! I am using WhatsApp Web.'
+        status: 'Hey there! I am using SocketChat.'
     };
     state.isGuest = false;
 
@@ -479,11 +479,11 @@ function handleUserSignedOut() {
         name: 'You',
         email: '',
         avatar: 'https://api.dicebear.com/7.x/bottts/svg?seed=me',
-        status: 'Hey there! I am using WhatsApp Web.'
+        status: 'Hey there! I am using SocketChat.'
     };
     if (clerkUserButtonContainer) clerkUserButtonContainer.innerHTML = '';
     showAuthPortal();
-    showToast('Signed out of WhatsApp Web');
+    showToast('Signed out of SocketChat');
 }
 
 function updateProfileUI() {
@@ -1435,7 +1435,7 @@ btnDemoGuest.onclick = () => {
         name: `Guest ${guestId.substring(6).toUpperCase()}`,
         email: 'guest@demo.local',
         avatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${guestId}`,
-        status: 'Hey there! I am using WhatsApp Web (Demo Mode).'
+        status: 'Hey there! I am using SocketChat (Demo Mode).'
     };
 
     connectSocket(null, state.myProfile);

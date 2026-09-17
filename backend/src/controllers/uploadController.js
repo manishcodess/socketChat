@@ -24,7 +24,7 @@ exports.uploadFile = async (req, res) => {
         const uploadResponse = await imagekit.upload({
             file: filePayload,
             fileName: fileName,
-            folder: '/whatsapp_clone/attachments',
+            folder: '/socketchat/attachments',
             useUniqueFileName: true
         });
 

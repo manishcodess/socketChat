@@ -1,7 +1,7 @@
 {
   "name": "socketchat-frontend",
   "version": "1.0.0",
-  "description": "WhatsApp Web Clone - Frontend Web Application",
+  "description": "SocketChat - Frontend Web Application",
   "scripts": {
     "dev": "vite --port 3000 --host",
     "build": "vite build",

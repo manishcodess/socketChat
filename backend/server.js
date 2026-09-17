@@ -1,5 +1,5 @@
 // ==========================================================================
-// WhatsApp Web Clone - Modular Backend Server
+// SocketChat - Modular Backend Server
 // Express REST API + Socket.IO + MongoDB (Mongoose) + ImageKit + Clerk Auth
 // ==========================================================================
 
@@ -50,7 +50,7 @@ app.use('/api/upload', uploadRoutes);
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'online',
-        service: 'WhatsApp Web Clone Real-Time Backend',
+        service: 'SocketChat Real-Time Backend',
         database: 'MongoDB Atlas',
         storage: 'ImageKit CDN',
         auth: 'Clerk Authentication',
@@ -86,7 +86,7 @@ if (distPath) {
     app.get('/', (req, res) => {
         res.json({
             status: 'online',
-            service: 'WhatsApp Web Clone Real-Time Backend',
+            service: 'SocketChat Real-Time Backend',
             database: 'MongoDB Atlas',
             storage: 'ImageKit CDN',
             auth: 'Clerk Authentication',
@@ -113,5 +113,5 @@ registerChatSocket(io);
 // Start Server (Render injects process.env.PORT)
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
-    console.log(`✓ WhatsApp Web Backend Server running at http://localhost:${PORT}`);
+    console.log(`✓ SocketChat Backend Server running at http://localhost:${PORT}`);
 });

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   WhatsApp Web Clone - Dark Theme Design System
+   SocketChat - Dark Theme Design System
    ========================================================================== */
 
 :root {
@@ -450,7 +450,7 @@ body {
     overflow: hidden;
 }
 
-/* WhatsApp Doodle Chat Wallpaper Background Pattern */
+/* SocketChat Doodle Chat Wallpaper Background Pattern */
 .chat-wallpaper {
     position: absolute;
     top: 0;

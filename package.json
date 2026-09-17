@@ -2,7 +2,7 @@
   "name": "socketchat",
   "version": "1.0.0",
   "private": true,
-  "description": "WhatsApp Web Clone - Real-Time Chat App with Clerk Authentication & Socket.IO",
+  "description": "SocketChat - Real-Time Chat App with Clerk Authentication & Socket.IO",
   "scripts": {
     "build": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
     "postinstall": "npm install --prefix backend && npm install --prefix frontend && npm run build --prefix frontend",
@@ -16,7 +16,7 @@
     "install:all": "npm install && npm install --prefix backend && npm install --prefix frontend"
   },
   "keywords": [
-    "whatsapp-clone",
+    "socketchat",
     "clerk",
     "socket.io",
     "realtime-chat",

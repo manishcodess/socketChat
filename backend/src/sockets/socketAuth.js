@@ -39,7 +39,7 @@ const socketAuthMiddleware = async (socket, next) => {
                 name: fullName,
                 avatar: avatar,
                 email: email,
-                status: 'Hey there! I am using WhatsApp Web.'
+                status: 'Hey there! I am using SocketChat.'
             };
 
             socket.data.user = userProfile;
@@ -81,7 +81,7 @@ const socketAuthMiddleware = async (socket, next) => {
             name: defaultName,
             avatar: defaultAvatar,
             email: guestEmail,
-            status: 'Hey there! I am using WhatsApp Web.'
+            status: 'Hey there! I am using SocketChat.'
         };
 
         socket.data.user = userProfile;

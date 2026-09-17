@@ -11,7 +11,7 @@ const UserSchema = new mongoose.Schema(
         name: {
             type: String,
             required: true,
-            default: 'WhatsApp User'
+            default: 'SocketChat User'
         },
         email: {
             type: String,
@@ -23,7 +23,7 @@ const UserSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            default: 'Hey there! I am using WhatsApp Web.',
+            default: 'Hey there! I am using SocketChat.',
             maxLength: 120
         },
         isOnline: {
