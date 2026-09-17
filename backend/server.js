@@ -62,6 +62,8 @@ app.get('/api/health', (req, res) => {
 // Production Static Serving for Render / Docker
 const distCandidates = [
     path.resolve(__dirname, '../frontend/dist'),
+    path.resolve(process.cwd(), 'frontend/dist'),
+    path.resolve(process.cwd(), 'dist'),
     path.resolve(__dirname, '../../frontend/dist'),
     path.resolve('/app/frontend/dist'),
     path.resolve(__dirname, './dist')
@@ -79,6 +81,7 @@ if (distPath) {
         next();
     });
 } else {
+    console.warn('! Warning: frontend/dist not found. Checked candidates:', distCandidates);
     // Fallback root when running backend standalone in development
     app.get('/', (req, res) => {
         res.json({
@@ -88,6 +91,7 @@ if (distPath) {
             storage: 'ImageKit CDN',
             auth: 'Clerk Authentication',
             port: process.env.PORT || 4000,
+            note: 'Frontend dist was not found. Please ensure `npm run build` ran during deployment.',
             timestamp: new Date().toISOString()
         });
     });
