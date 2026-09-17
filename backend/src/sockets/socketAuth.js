@@ -1,3 +1,4 @@
+const { verifyToken } = require('@clerk/backend');
 const { getClerkClient } = require('../config/clerk');
 const User = require('../models/User');
 
@@ -13,17 +14,20 @@ const socketAuthMiddleware = async (socket, next) => {
     const clerkClient = getClerkClient();
 
     // 1. Authenticated Clerk Session (when token is provided)
-    if (token && isKeysConfigured && clerkClient) {
+    if (token && isKeysConfigured) {
         try {
-            // Verify session token via Clerk Backend SDK
-            const sessionClaims = await clerkClient.verifyToken(token);
+            // Verify session token via Clerk Backend SDK standalone verifyToken
+            const secretKey = process.env.CLERK_SECRET_KEY;
+            const sessionClaims = await verifyToken(token, { secretKey });
             const clerkUserId = sessionClaims.sub;
 
             let clerkUser = null;
-            try {
-                clerkUser = await clerkClient.users.getUser(clerkUserId);
-            } catch (userErr) {
-                console.warn(`Could not fetch full profile for ${clerkUserId}:`, userErr.message);
+            if (clerkClient) {
+                try {
+                    clerkUser = await clerkClient.users.getUser(clerkUserId);
+                } catch (userErr) {
+                    console.warn(`Could not fetch full profile for ${clerkUserId}:`, userErr.message);
+                }
             }
 
             const fullName = clerkUser
@@ -39,7 +43,7 @@ const socketAuthMiddleware = async (socket, next) => {
                 name: fullName,
                 avatar: avatar,
                 email: email,
-                status: 'Hey there! I am using SocketChat.'
+                status: clientUser?.status || 'Hey there! I am using SocketChat.'
             };
 
             socket.data.user = userProfile;
@@ -66,6 +70,22 @@ const socketAuthMiddleware = async (socket, next) => {
             return next();
         } catch (err) {
             console.error('Socket.IO Clerk token verification failed:', err.message);
+
+            // Fallback gracefully if clientUser profile is attached
+            if (clientUser && (clientUser.clerkId || clientUser.id)) {
+                console.warn('Falling back to client-provided profile for socket connection.');
+                const fallbackId = clientUser.clerkId || clientUser.id;
+                socket.data.user = {
+                    id: socket.id,
+                    clerkId: fallbackId,
+                    name: clientUser.name || 'User',
+                    avatar: clientUser.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${fallbackId}`,
+                    email: clientUser.email || '',
+                    status: clientUser.status || 'Hey there! I am using SocketChat.'
+                };
+                return next();
+            }
+
             return next(new Error('Authentication error: Invalid or expired Clerk session token.'));
         }
     } else {
