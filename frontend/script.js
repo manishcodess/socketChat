@@ -3,12 +3,20 @@
 // ==========================================================================
 
 // Dynamic Backend Server URL resolution
-// Automatically points to backend server on port 4000 when frontend runs on port 3000 / 5173
-const BACKEND_URL = window.BACKEND_URL || (
-    window.location.port === '4000'
-        ? ''
-        : `${window.location.protocol}//${window.location.hostname}:4000`
+// 1. If explicitly set via window.BACKEND_URL or VITE_BACKEND_URL (for split frontend hosting like Vercel)
+// 2. In local dev (port 3000 / 5173), dynamically points to backend on port 4000
+// 3. In production full-stack (Render / Docker), uses same-origin relative paths ('')
+const isLocalhost = Boolean(
+    window.location.hostname === 'localhost' ||
+    window.location.hostname === '127.0.0.1' ||
+    window.location.hostname === '[::1]'
 );
+
+const BACKEND_URL = window.BACKEND_URL || 
+    (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_BACKEND_URL) ||
+    (isLocalhost && window.location.port !== '4000'
+        ? `${window.location.protocol}//${window.location.hostname}:4000`
+        : '');
 
 // Global Application State
 const state = {
@@ -101,7 +109,7 @@ class SoundEffects {
             gain.connect(this.ctx.destination);
             osc.start();
             osc.stop(this.ctx.currentTime + 0.08);
-        } catch (e) {}
+        } catch (e) { }
     }
 
     playReceived() {
@@ -119,7 +127,7 @@ class SoundEffects {
             gain.connect(this.ctx.destination);
             osc.start();
             osc.stop(this.ctx.currentTime + 0.12);
-        } catch (e) {}
+        } catch (e) { }
     }
 
     playRingtone() {
@@ -234,10 +242,10 @@ const callStatusText = document.getElementById('call-status-text');
 // Emoji Library Definition
 // ==========================================================================
 const EMOJI_CATEGORIES = {
-    smileys: ['😀','😃','😄','😁','😆','😅','😂','🤣','🥲','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','🤓','😎','🥸','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🫣','🤭','🤫','🫠','🤐','😶','😐','😑','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','😷','🤒','🤕','🤢','🤮'],
-    gestures: ['👍','👎','👌','🤌','🤏','✌️','🤞','🫰','🤟','🤘','🤙','👈','👉','👆','🖕','👇','☝️','🫵','👋','🤚','🖐️','✋','🖖','🫱','🫲','🫸','🫷','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🦾','🦿','🦵','🦶','👂','🦻','👃','👀','👁️','👅','👄'],
-    hearts: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','❣️','💕','💞','💓','💗','💖','💘','💝','💟','💌','💋','💯','💢','💥','💫','💦','💨','🕳️','💣'],
-    celebration: ['🎉','🎊','🎈','🎂','🍰','🍾','🥂','🍻','🍺','🍹','🍸','🍕','🍔','🍟','🌭','🍿','🍩','🍦','🔥','✨','🌟','⭐','⚡️','🌈','☀️','🌙','🚀','🎯','🏆','🥇','🎁']
+    smileys: ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '🥲', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🥸', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓', '🤗', '🤔', '🫣', '🤭', '🤫', '🫠', '🤐', '😶', '😐', '😑', '😬', '🙄', '😯', '😦', '😧', '😮', '😲', '🥱', '😴', '🤤', '😪', '😵', '🤐', '😷', '🤒', '🤕', '🤢', '🤮'],
+    gestures: ['👍', '👎', '👌', '🤌', '🤏', '✌️', '🤞', '🫰', '🤟', '🤘', '🤙', '👈', '👉', '👆', '🖕', '👇', '☝️', '🫵', '👋', '🤚', '🖐️', '✋', '🖖', '🫱', '🫲', '🫸', '🫷', '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅', '🤳', '💪', '🦾', '🦿', '🦵', '🦶', '👂', '🦻', '👃', '👀', '👁️', '👅', '👄'],
+    hearts: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '💌', '💋', '💯', '💢', '💥', '💫', '💦', '💨', '🕳️', '💣'],
+    celebration: ['🎉', '🎊', '🎈', '🎂', '🍰', '🍾', '🥂', '🍻', '🍺', '🍹', '🍸', '🍕', '🍔', '🍟', '🌭', '🍿', '🍩', '🍦', '🔥', '✨', '🌟', '⭐', '⚡️', '🌈', '☀️', '🌙', '🚀', '🎯', '🏆', '🥇', '🎁']
 };
 
 function renderEmojis(category = 'smileys') {
@@ -308,10 +316,10 @@ function showToast(message) {
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/"/g, "&quot;")
-              .replace(/'/g, "&#039;");
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
 
 // ==========================================================================
@@ -787,8 +795,8 @@ function renderChatList() {
     // Search
     if (state.searchQuery.trim()) {
         const q = state.searchQuery.toLowerCase();
-        chatItems = chatItems.filter(c => 
-            c.name.toLowerCase().includes(q) || 
+        chatItems = chatItems.filter(c =>
+            c.name.toLowerCase().includes(q) ||
             (c.lastMessage && c.lastMessage.toLowerCase().includes(q))
         );
     }
@@ -890,8 +898,8 @@ async function loadChatHistory(chatId) {
                 };
             }
             state.chats[chatId].messages = data.messages.map(m => {
-                const isSelf = (m.senderId === state.socket?.id) || 
-                               (m.senderClerkId && state.myProfile.clerkId && m.senderClerkId === state.myProfile.clerkId);
+                const isSelf = (m.senderId === state.socket?.id) ||
+                    (m.senderClerkId && state.myProfile.clerkId && m.senderClerkId === state.myProfile.clerkId);
                 const attUrl = typeof m.attachment === 'string' ? m.attachment : (m.attachment?.url || null);
                 return {
                     id: m.msgId || m._id,
@@ -1373,7 +1381,7 @@ function startCallSimulation(isVideo = false) {
 
     setTimeout(() => {
         if (ringAudio && ringAudio.osc) {
-            try { ringAudio.osc.stop(); } catch (e) {}
+            try { ringAudio.osc.stop(); } catch (e) { }
         }
         callStatusText.textContent = '00:01';
         let seconds = 1;
@@ -1392,7 +1400,7 @@ btnVideoCall.onclick = () => startCallSimulation(true);
 btnEndCall.onclick = () => {
     if (callInterval) clearInterval(callInterval);
     if (ringAudio && ringAudio.osc) {
-        try { ringAudio.osc.stop(); } catch (e) {}
+        try { ringAudio.osc.stop(); } catch (e) { }
     }
     closeModal(modalCall);
     showToast('Call ended');

@@ -1,11 +1,11 @@
 services:
   - type: web
     name: socketchat
-    env: docker
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    env: node
     plan: free
-    healthCheckPath: /
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
