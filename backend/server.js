@@ -3,11 +3,14 @@
 // Express REST API + Socket.IO + MongoDB (Mongoose) + ImageKit + Clerk Auth
 // ==========================================================================
 
-require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const http = require('http');
+const path = require('path');
+const fs = require('fs');
 const { Server } = require('socket.io');
+
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 
 // Config & Database
 const connectDB = require('./src/config/db');
@@ -38,8 +41,13 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Health Check Endpoint
-app.get('/', (req, res) => {
+// Register API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/upload', uploadRoutes);
+
+// Health Check API (for Render health monitoring)
+app.get('/api/health', (req, res) => {
     res.json({
         status: 'online',
         service: 'WhatsApp Web Clone Real-Time Backend',
@@ -51,10 +59,39 @@ app.get('/', (req, res) => {
     });
 });
 
-// Register API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/upload', uploadRoutes);
+// Production Static Serving for Render / Docker
+const distCandidates = [
+    path.resolve(__dirname, '../frontend/dist'),
+    path.resolve(__dirname, '../../frontend/dist'),
+    path.resolve('/app/frontend/dist'),
+    path.resolve(__dirname, './dist')
+];
+const distPath = distCandidates.find(p => fs.existsSync(p));
+
+if (distPath) {
+    console.log(`✓ Serving production frontend assets from: ${distPath}`);
+    app.use(express.static(distPath));
+    // SPA Fallback for client-side routing in Express 5
+    app.use((req, res, next) => {
+        if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.startsWith('/socket.io')) {
+            return res.sendFile(path.join(distPath, 'index.html'));
+        }
+        next();
+    });
+} else {
+    // Fallback root when running backend standalone in development
+    app.get('/', (req, res) => {
+        res.json({
+            status: 'online',
+            service: 'WhatsApp Web Clone Real-Time Backend',
+            database: 'MongoDB Atlas',
+            storage: 'ImageKit CDN',
+            auth: 'Clerk Authentication',
+            port: process.env.PORT || 4000,
+            timestamp: new Date().toISOString()
+        });
+    });
+}
 
 // Initialize Socket.IO Server
 const io = new Server(server, {
@@ -69,7 +106,7 @@ const io = new Server(server, {
 io.use(socketAuthMiddleware);
 registerChatSocket(io);
 
-// Start Server
+// Start Server (Render injects process.env.PORT)
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
     console.log(`✓ WhatsApp Web Backend Server running at http://localhost:${PORT}`);

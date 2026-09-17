@@ -12,13 +12,10 @@ const socketAuthMiddleware = async (socket, next) => {
 
     const clerkClient = getClerkClient();
 
-    if (isKeysConfigured && clerkClient) {
-        if (!token) {
-            return next(new Error('Authentication error: Missing Clerk session token. Please sign in.'));
-        }
-
+    // 1. Authenticated Clerk Session (when token is provided)
+    if (token && isKeysConfigured && clerkClient) {
         try {
-            // Verify session token via Clerk
+            // Verify session token via Clerk Backend SDK
             const sessionClaims = await clerkClient.verifyToken(token);
             const clerkUserId = sessionClaims.sub;
 
@@ -72,17 +69,18 @@ const socketAuthMiddleware = async (socket, next) => {
             return next(new Error('Authentication error: Invalid or expired Clerk session token.'));
         }
     } else {
-        // Fallback / Development Mode when keys are not configured
+        // 2. Guest / Demo Mode (or fallback when token is not provided)
         const defaultName = clientUser?.name || `Guest ${socket.id.substring(0, 4).toUpperCase()}`;
         const defaultAvatar = clientUser?.avatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${socket.id}`;
         const clerkId = clientUser?.clerkId || clientUser?.id || `demo_${socket.id}`;
 
+        const guestEmail = clientUser?.email || `${clerkId}@guest.local`;
         const userProfile = {
             id: socket.id,
             clerkId: clerkId,
             name: defaultName,
             avatar: defaultAvatar,
-            email: clientUser?.email || '',
+            email: guestEmail,
             status: 'Hey there! I am using WhatsApp Web.'
         };
 
@@ -96,7 +94,7 @@ const socketAuthMiddleware = async (socket, next) => {
                     clerkId: clerkId,
                     name: defaultName,
                     avatar: defaultAvatar,
-                    email: clientUser?.email || '',
+                    email: guestEmail,
                     socketId: socket.id,
                     isOnline: true,
                     lastSeen: new Date()

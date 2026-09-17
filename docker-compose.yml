@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  socketchat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: socketchat-app
+    ports:
+      - "4000:10000"
+    env_file:
+      - backend/.env
+    restart: unless-stopped
+

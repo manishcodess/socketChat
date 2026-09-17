@@ -513,8 +513,9 @@ function connectSocket(token, userProfile) {
         state.myProfile = { ...state.myProfile, ...user };
         updateProfileUI();
 
-        // Auto join default group
+        // Auto join default group and fetch MongoDB chat history
         socket.emit('join-room', 'general');
+        loadChatHistory('global');
         renderChatList();
         renderActiveChat();
     });
@@ -867,9 +868,60 @@ function selectChat(chat) {
 
     renderActiveChat();
     renderChatList();
+    loadChatHistory(chat.id);
 
     // Mobile view switch
     appContainer.classList.add('show-chat');
+}
+
+// Fetch persistent chat history from MongoDB
+async function loadChatHistory(chatId) {
+    if (!chatId) return;
+    try {
+        const res = await fetch(`${BACKEND_URL}/api/messages/${encodeURIComponent(chatId)}`);
+        const data = await res.json();
+        if (data.messages && Array.isArray(data.messages)) {
+            if (!state.chats[chatId]) {
+                state.chats[chatId] = {
+                    id: chatId,
+                    name: chatId === 'global' ? 'General Lounge' : chatId,
+                    messages: [],
+                    unread: 0
+                };
+            }
+            state.chats[chatId].messages = data.messages.map(m => {
+                const isSelf = (m.senderId === state.socket?.id) || 
+                               (m.senderClerkId && state.myProfile.clerkId && m.senderClerkId === state.myProfile.clerkId);
+                const attUrl = typeof m.attachment === 'string' ? m.attachment : (m.attachment?.url || null);
+                return {
+                    id: m.msgId || m._id,
+                    chatId: m.chatId,
+                    senderId: m.senderId,
+                    senderClerkId: m.senderClerkId,
+                    senderName: m.senderName,
+                    senderAvatar: m.senderAvatar,
+                    isSelf: isSelf,
+                    text: m.text,
+                    attachment: attUrl,
+                    reactions: m.reactions || [],
+                    timestamp: m.timestamp
+                };
+            });
+
+            if (data.messages.length > 0) {
+                const lastMsg = data.messages[data.messages.length - 1];
+                state.chats[chatId].lastMessage = lastMsg.text || (lastMsg.attachment ? '📷 Photo' : 'Message');
+                state.chats[chatId].lastTime = formatTime(lastMsg.timestamp);
+            }
+
+            renderChatList();
+            if (state.activeChat.id === chatId) {
+                renderActiveMessages();
+            }
+        }
+    } catch (err) {
+        console.warn('Could not load chat history from MongoDB:', err.message);
+    }
 }
 
 // Render Header & Metadata for Active Chat
@@ -930,14 +982,16 @@ function renderActiveMessages() {
             return;
         }
 
+        const isSelf = msg.isSelf || (msg.senderId === state.socket?.id) || (msg.senderClerkId && state.myProfile.clerkId && msg.senderClerkId === state.myProfile.clerkId);
         const row = document.createElement('div');
-        row.classList.add('msg-row', msg.isSelf ? 'sent' : 'received');
+        row.classList.add('msg-row', isSelf ? 'sent' : 'received');
         row.dataset.msgId = msg.id;
 
         const textMarkup = msg.text ? `<div class="message-text">${escapeHtml(msg.text)}</div>` : '';
-        const attachmentMarkup = msg.attachment ? `
+        const attUrl = typeof msg.attachment === 'string' ? msg.attachment : (msg.attachment?.url || null);
+        const attachmentMarkup = attUrl ? `
             <div class="message-attachment">
-                <img src="${msg.attachment}" alt="Shared Image" onclick="window.open('${msg.attachment}')">
+                <img src="${attUrl}" alt="ImageKit Shared Image" onclick="window.open('${attUrl}', '_blank')">
             </div>
         ` : '';
 
@@ -1092,27 +1146,43 @@ messageInputEl.addEventListener('keydown', (e) => {
 btnSendMessage.onclick = sendMessage;
 
 // ==========================================================================
-// Image & Attachment Handling
+// Image & Attachment Handling via ImageKit
 // ==========================================================================
 btnAttachFile.onclick = () => fileInput.click();
 
-fileInput.addEventListener('change', (e) => {
+fileInput.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    if (file.size > 4 * 1024 * 1024) {
-        showToast('Image size should be under 4MB');
+    if (file.size > 8 * 1024 * 1024) {
+        showToast('Image size should be under 8MB');
         return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        state.pendingAttachment = ev.target.result;
-        attachmentPreviewImg.src = state.pendingAttachment;
-        attachmentPreviewBox.style.display = 'block';
-        updateSendButtonState();
-    };
-    reader.readAsDataURL(file);
+    showToast('Uploading image to ImageKit...');
+    try {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('fileName', file.name);
+
+        const res = await fetch(`${BACKEND_URL}/api/upload`, {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        if (data.success && data.url) {
+            state.pendingAttachment = data.url;
+            attachmentPreviewImg.src = data.url;
+            attachmentPreviewBox.style.display = 'block';
+            updateSendButtonState();
+            showToast('✓ Image uploaded to ImageKit');
+        } else {
+            showToast('Upload failed: ' + (data.error || 'Server error'));
+        }
+    } catch (err) {
+        console.error('ImageKit upload error:', err);
+        showToast('Error uploading image to ImageKit');
+    }
 });
 
 btnRemoveAttachment.onclick = clearAttachment;
